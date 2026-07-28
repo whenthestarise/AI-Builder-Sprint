@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>포에버웨이(Forever-Way) - 완결판 B2B Admin 프로토타입 v2</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Pretendard', sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; padding: 0; }
+    .view-section { display: none; animation: fadeIn 0.3s ease-out; }
+    .view-section.active { display: block; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes pulse-glow {
+      0%, 100% { box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); }
+      50% { box-shadow: 0 0 25px rgba(59, 130, 246, 0.9); }
+    }
+    .glow-btn { animation: pulse-glow 2s infinite; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #1e293b; }
+    ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+  <!-- ==========================================
+       [상단 글로벌 헤더] SaaS 대메뉴 (GNB)
+       ========================================== -->
+  <header class="bg-slate-900/95 border-b border-slate-700/80 sticky top-0 z-40 px-6 py-3.5 backdrop-blur flex justify-between items-center shadow-lg">
+    <div class="flex items-center space-x-3 cursor-pointer" onclick="showView('view1')">
+      <span class="bg-blue-600 text-white font-extrabold px-2.5 py-1 rounded text-xs tracking-wider">B2G/B2B ADMIN</span>
+      <h1 class="font-bold text-lg text-white flex items-center gap-1.5">
+        🐾 포에버웨이 <span class="text-xs text-slate-400 font-normal">| AI 기반 유기동물 CLM 플랫폼</span>
+      </h1>
+    </div>
+    
+    <!-- ★ 깔끔해진 대메뉴 (2번, 3번은 내부 이동으로 숨김!) -->
+    <div class="flex bg-slate-800 p-1.5 rounded-xl border border-slate-700 text-xs font-bold">
+      <button id="nav-view1" onclick="showView('view1')" class="px-5 py-2 rounded-lg transition text-blue-400 bg-slate-900 shadow">
+        🏠 대시보드 홈 (동물목록 & 심사)
+      </button>
+      <button id="nav-view5" onclick="showView('view5')" class="px-5 py-2 rounded-lg transition text-slate-400 hover:text-white flex items-center gap-1.5">
+        <span>📑 입양관리 (리스크신호 & CLM)</span>
+        <span class="bg-red-500 text-white text-[10px] px-1.5 py-0.2 rounded font-extrabold animate-pulse">위협 1건</span>
+      </button>
+      <!-- 실제 서비스 느낌을 주는 더미 탭 -->
+      <button onclick="alert('MVP 시연 범위에서는 [대시보드 홈]과 [입양관리] 탭에 집중합니다.')" class="px-4 py-2 rounded-lg text-slate-500 hover:text-slate-400 transition">
+        📊 통계 리포트
+      </button>
+      <button onclick="alert('MVP 시연 범위에서는 [대시보드 홈]과 [입양관리] 탭에 집중합니다.')" class="px-4 py-2 rounded-lg text-slate-500 hover:text-slate-400 transition">
+        ⚙️ 환경설정
+      </button>
+    </div>
+
+    <div class="text-xs text-slate-300 flex items-center gap-3">
+      <span class="bg-slate-800 text-slate-400 px-2.5 py-1 rounded border border-slate-700 font-mono text-[11px]">외부 신청서 연동: 정상 🟢</span>
+      <div class="flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-green-500 inline-block animate-ping"></span>
+        <span class="font-bold text-slate-200">이매니저 (활동가)</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- 메인 컨텐츠 영역 -->
+  <main class="flex-1 max-w-6xl w-full mx-auto p-6">
+
+    <!-- ==========================================
+         View 1. 대시보드 홈 (동물 리스트 & 신규 등록)
+         ========================================== -->
+    <section id="view1" class="view-section active space-y-6">
+      <div class="flex justify-between items-end border-b border-slate-800 pb-4">
+        <div>
+          <span class="text-blue-400 font-bold text-xs font-mono">DASHBOARD HOME</span>
+          <h2 class="text-2xl font-bold text-white mt-1">보호 동물 현황 및 입양 심사</h2>
+          <p class="text-sm text-slate-400">외부 접수된 입양 신청자 매칭 현황을 확인하고 클릭하여 심사 및 계약을 진행하세요.</p>
+        </div>
+        <button onclick="openRegModal()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-4 py-2.5 rounded-lg transition shadow-lg flex items-center gap-1.5 border border-blue-400">
+          <span class="text-base">+</span>
+          <span>신규 유기동물 등록 (AI 특성 입력)</span>
+        </button>
+      </div>
+
+      <!-- 요약 통계 카드 -->
+      <div class="grid grid-cols-4 gap-4">
+        <div class="bg-slate-800/60 border border-slate-700/80 p-4 rounded-xl">
+          <div class="text-xs text-slate-400">전체 보호 동물</div>
+          <div class="text-2xl font-bold text-white mt-1">24 <span class="text-xs font-normal text-slate-400">마리</span></div>
+        </div>
+        <div class="bg-slate-800/60 border border-slate-700/80 p-4 rounded-xl">
+          <div class="text-xs text-blue-400 font-semibold">입양 대기중 (계약가능)</div>
+          <div class="text-2xl font-bold text-blue-400 mt-1">18 <span class="text-xs font-normal text-slate-400">마리</span></div>
+        </div>
+        <div class="bg-slate-800/60 border border-slate-700/80 p-4 rounded-xl">
+          <div class="text-xs text-orange-400 font-semibold">온라인 신청서 접수됨</div>
+          <div class="text-2xl font-bold text-orange-400 mt-1">5 <span class="text-xs font-normal text-slate-400">건 (매칭대기)</span></div>
+        </div>
+        <div class="bg-slate-800/60 border border-slate-700/80 p-4 rounded-xl" onclick="showView('view5')" style="cursor:pointer;">
+          <div class="text-xs text-red-400 font-semibold flex justify-between">
+            <span>모두싸인 CLM (위험 알람)</span>
+            <span>👉 클릭</span>
+          </div>
+          <div class="text-2xl font-bold text-red-400 mt-1">1 <span class="text-xs font-normal text-slate-400">건 (조치요망)</span></div>
+        </div>
+      </div>
+
+      <!-- 동물 리스트 그리드 -->
+      <div class="grid grid-cols-3 gap-6 pt-2">
+        <!-- 1. 바오 (핵심 시연용 카드) -->
+        <div onclick="showView('view2')" class="bg-slate-800 border-2 border-blue-500/80 hover:border-blue-400 rounded-2xl p-5 cursor-pointer shadow-xl hover:shadow-blue-500/10 transition group relative overflow-hidden">
+          <div class="absolute top-3 right-3 bg-blue-600 text-white text-[10px] font-bold px-2.5 py-1 rounded-full animate-pulse z-10">
+            👉 추천 시연 개체
+          </div>
+          <div class="w-full h-44 bg-slate-900 rounded-xl mb-4 overflow-hidden relative">
+            <img src="https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=600&q=80" alt="바오" class="w-full h-full object-cover group-hover:scale-105 transition duration-300 opacity-90">
+            <div class="absolute bottom-2 left-2 bg-black/60 backdrop-blur text-white text-[11px] font-semibold px-2 py-0.5 rounded">ID: #DOG-2026-01</div>
+            <div class="absolute bottom-2 right-2 bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded">신청접수 1건</div>
+          </div>
+          <div class="flex justify-between items-center mb-1">
+            <h3 class="text-xl font-bold text-white group-hover:text-blue-400 transition">바오 (Bao)</h3>
+            <span class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded font-medium">3살 · 믹스견</span>
+          </div>
+          <p class="text-xs text-orange-300 font-medium bg-orange-950/50 border border-orange-500/30 p-2 rounded-lg mt-2 leading-relaxed">
+            ⚠ 특성: 심한 분리불안 증세 있음, 실외 배변 선호 (AI 행동 교정 특약 생성 필수)
+          </p>
+          <div class="mt-4 pt-3 border-t border-slate-700/80 flex justify-between items-center text-xs text-slate-400">
+            <span>계약 상태: <strong class="text-blue-400">심사 진행중</strong></span>
+            <span class="text-blue-400 font-bold group-hover:translate-x-1 transition">상세 및 신청자 보기 &rarr;</span>
+          </div>
+        </div>
+
+        <!-- 2. 초코 -->
+        <div onclick="alert('데모 시연은 첫 번째 [바오] 카드를 클릭해 주세요!')" class="bg-slate-800/60 border border-slate-700/80 rounded-2xl p-5 cursor-pointer opacity-75 hover:opacity-100 transition">
+          <div class="w-full h-44 bg-slate-900 rounded-xl mb-4 overflow-hidden relative">
+            <img src="https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=600&q=80" alt="초코" class="w-full h-full object-cover opacity-70">
+            <div class="absolute bottom-2 right-2 bg-slate-700 text-slate-300 text-[10px] font-bold px-2 py-0.5 rounded">신청접수 0건</div>
+          </div>
+          <div class="flex justify-between items-center mb-1">
+            <h3 class="text-xl font-bold text-slate-300">초코 (Choco)</h3>
+            <span class="text-xs bg-slate-700 text-slate-400 px-2 py-0.5 rounded">2살 · 푸들</span>
+          </div>
+          <p class="text-xs text-slate-400 bg-slate-900/50 p-2 rounded-lg mt-2">특성: 사람을 매우 좋아함, 슬개골 탈구 1기 주의</p>
+          <div class="mt-4 pt-3 border-t border-slate-700/60 flex justify-between items-center text-xs text-slate-500">
+            <span>계약 상태: <strong>대기중</strong></span>
+            <span>상세 보기 &rarr;</span>
+          </div>
+        </div>
+
+        <!-- 3. 보리 (위협 알람 연동) -->
+        <div onclick="showView('view5')" class="bg-slate-800/80 border-2 border-red-500/60 rounded-2xl p-5 cursor-pointer hover:border-red-400 transition relative">
+          <div class="absolute top-3 right-3 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded animate-bounce">
+            🔴 리스크 알람
+          </div>
+          <div class="w-full h-44 bg-slate-900 rounded-xl mb-4 overflow-hidden relative">
+            <img src="https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=600&q=80" alt="보리" class="w-full h-full object-cover opacity-80">
+          </div>
+          <div class="flex justify-between items-center mb-1">
+            <h3 class="text-xl font-bold text-white">보리 (Bori)</h3>
+            <span class="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded">5살 · 리트리버</span>
+          </div>
+          <p class="text-xs text-red-300 bg-red-950/60 border border-red-500/30 p-2 rounded-lg mt-2 font-medium">
+            🚨 D+30 인증 기한 12일 경과 (연락 두절 ➔ 가정방문 조치 필요)
+          </p>
+          <div class="mt-4 pt-3 border-t border-slate-700/60 flex justify-between items-center text-xs">
+            <span class="text-red-400 font-bold">CLM 리스크: 🔴 위협</span>
+            <span class="text-red-400 font-bold">입양관리에서 확인 &rarr;</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         View 2. 동물 상세 & 온라인 접수 신청자 명단
+         ========================================== -->
+    <section id="view2" class="view-section space-y-6">
+      <!-- ★ 브레드크럼 (이동 경로 안내) -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div class="flex items-center gap-2 text-xs text-slate-400 font-semibold">
+          <span onclick="showView('view1')" class="hover:text-white cursor-pointer">🏠 대시보드 홈</span>
+          <span>&gt;</span>
+          <span class="text-blue-400">동물 상세 및 신청자 매칭</span>
+        </div>
+        <button onclick="showView('view1')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition">&larr; 목록으로 돌아가기</button>
+      </div>
+
+      <div class="grid grid-cols-12 gap-8">
+        <!-- 좌측: 동물 상세 특성 -->
+        <div class="col-span-5 bg-slate-800/80 border border-slate-700 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+          <div class="space-y-4">
+            <div class="w-full h-64 bg-slate-900 rounded-xl overflow-hidden relative border border-slate-700">
+              <img src="https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=600&q=80" alt="바오 상세" class="w-full h-full object-cover">
+              <div class="absolute top-3 left-3 bg-blue-600 text-white font-bold text-xs px-3 py-1 rounded-full shadow">ID: #DOG-2026-01</div>
+            </div>
+            
+            <div>
+              <h3 class="text-2xl font-extrabold text-white">바오 (Bao)</h3>
+              <p class="text-xs text-slate-400 mt-0.5">3살 · 믹스견 · 수컷(중성화 완료) · 8.5kg</p>
+            </div>
+
+            <!-- AI 특성 입력 데이터 표시 -->
+            <div class="bg-slate-900 p-4 rounded-xl border border-slate-700/80 space-y-2">
+              <div class="text-xs font-bold text-blue-400">🤖 AI 계약서 조율용 행동 특성 데이터</div>
+              <div class="flex flex-wrap gap-1.5 pt-1">
+                <span class="bg-orange-950 text-orange-300 border border-orange-500/30 text-xs px-2.5 py-1 rounded-md font-medium">⚠ 심한 분리불안</span>
+                <span class="bg-slate-800 text-slate-300 text-xs px-2.5 py-1 rounded-md">실외 배변 선호</span>
+                <span class="bg-slate-800 text-slate-300 text-xs px-2.5 py-1 rounded-md">헛짖음 약간 있음</span>
+                <span class="bg-slate-800 text-slate-300 text-xs px-2.5 py-1 rounded-md">사람을 매우 좋아함</span>
+              </div>
+              <p class="text-xs text-slate-400 font-light pt-1 border-t border-slate-800 mt-2">
+                * 위 특성 데이터를 Upstage Solar LLM이 인식하여 맞춤형 책임 약관(행동 교정 지침 등)을 드래프트합니다.
+              </p>
+            </div>
+          </div>
+          
+          <div class="text-[11px] text-slate-500 pt-4 border-t border-slate-700 mt-4">
+            구조일시: 2026.05.12 | 구조장소: 부산 해운대구 | 관할: 부산보호센터
+          </div>
+        </div>
+
+        <!-- 우측: 외부 접수된 입양 신청자 명단 -->
+        <div class="col-span-7 bg-slate-800/80 border border-slate-700 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+          <div class="space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+              <div>
+                <h3 class="font-bold text-lg text-white">📑 접수된 입양 신청자 명단 (외부 폼 연동)</h3>
+                <span class="text-xs text-slate-400">온라인 신청서를 작성한 희망자 목록입니다. 상담 후 계약을 체결할 신청자를 선택하세요.</span>
+              </div>
+              <span class="bg-orange-500/20 text-orange-400 border border-orange-500/30 text-xs font-bold px-2.5 py-1 rounded-full">대기 1건</span>
+            </div>
+
+            <!-- 신청자 리스트 카드 -->
+            <div class="space-y-3">
+              <div class="bg-slate-900 border-2 border-blue-500 p-5 rounded-xl relative shadow-lg">
+                <div class="flex justify-between items-start mb-3">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-9 h-9 rounded-full bg-blue-600/20 text-blue-400 flex items-center justify-center font-bold text-sm">1</div>
+                    <div>
+                      <span class="font-bold text-white text-base">김민수 (신청자)</span>
+                      <span class="text-xs text-slate-400 ml-1">· 접수일: 2026.07.27</span>
+                      <div class="text-xs text-slate-400 mt-0.5">📞 연락처: 010-1234-5678 | ✉️ minsoo@naver.com</div>
+                    </div>
+                  </div>
+                  <span class="bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded">1차 심사 통과</span>
+                </div>
+
+                <div class="bg-slate-800/80 p-3.5 rounded-lg border border-slate-700 text-xs space-y-1.5 text-slate-300">
+                  <div class="flex justify-between"><span class="text-slate-400">🏠 주거 환경:</span> <strong class="text-white">1인 가구, 아파트 (방묘문 및 안전문 설치 완료)</strong></div>
+                  <div class="flex justify-between"><span class="text-slate-400">🐶 양육 경험:</span> <strong class="text-white">과거 반려견 15년 자연사 케어 경험 있음</strong></div>
+                  <div class="flex justify-between"><span class="text-slate-400">⏳ 외출 시간:</span> <strong class="text-white">하루 평균 6시간 (퇴근 후 산책 2회 가능)</strong></div>
+                </div>
+
+                <!-- AI 매칭 코멘트 -->
+                <div class="mt-3 pt-2 border-t border-slate-800 flex items-center justify-between text-xs font-semibold">
+                  <span class="text-green-400">💡 AI 매칭 분석: "과거 노령견 케어 경험이 있어 바오의 분리불안 훈련에 적합함."</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 액션 버튼 -->
+          <div class="pt-6 border-t border-slate-700 mt-6">
+            <button onclick="showView('view3')" class="glow-btn w-full bg-blue-600 hover:bg-blue-500 text-white font-bold text-base py-4 rounded-xl shadow-xl transition flex justify-center items-center gap-2 border border-blue-400">
+              <span>👉 김민수 신청자와 AI 책임 입양 계약 체결하기</span>
+              <span class="text-blue-200 text-sm">&rarr;</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         View 3. AI 계약서 조율 & 요약 (서명 직전)
+         ========================================== -->
+    <section id="view3" class="view-section space-y-6">
+      <!-- ★ 브레드크럼 (이동 경로 안내) -->
+      <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div class="flex items-center gap-2 text-xs text-slate-400 font-semibold">
+          <span onclick="showView('view1')" class="hover:text-white cursor-pointer">🏠 대시보드 홈</span>
+          <span>&gt;</span>
+          <span onclick="showView('view2')" class="hover:text-white cursor-pointer">동물 상세 (바오)</span>
+          <span>&gt;</span>
+          <span class="text-blue-400">AI 맞춤 책임계약 조율</span>
+        </div>
+        <button onclick="showView('view2')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-lg text-xs font-semibold transition">&larr; 이전 단계로</button>
+      </div>
+
+      <!-- 진행률 스텝퍼 -->
+      <div class="bg-slate-800/50 border border-slate-700 p-3 rounded-xl flex justify-between items-center text-xs font-bold">
+        <span class="text-slate-500 px-3 py-1">1단계: 대상 동물 & 신청자 확인 완</span>
+        <span class="text-blue-400 bg-blue-500/10 border border-blue-500/30 px-3 py-1 rounded-lg">2단계: Upstage AI 계약서 실시간 생성 (Active)</span>
+        <span class="text-slate-500 px-3 py-1">3단계: 모두싸인 전자서명 완결</span>
+      </div>
+
+      <div class="grid grid-cols-12 gap-6">
+        <!-- 좌측: 체결 요약 및 AI 생성 제어 -->
+        <div class="col-span-4 space-y-4">
+          <div class="bg-slate-800 p-5 rounded-xl border border-slate-700 space-y-3">
+            <h3 class="font-bold text-white text-base border-b border-slate-700 pb-2">📑 체결 대상 정보 요약</h3>
+            <div class="space-y-2 text-xs">
+              <div class="flex justify-between py-1 border-b border-slate-700/50"><span class="text-slate-400">입양 동물</span><strong class="text-white">바오 (3살, 믹스견)</strong></div>
+              <div class="flex justify-between py-1 border-b border-slate-700/50"><span class="text-slate-400">동물 특성</span><strong class="text-orange-400">심한 분리불안 증세</strong></div>
+              <div class="flex justify-between py-1 border-b border-slate-700/50"><span class="text-slate-400">입양 신청자</span><strong class="text-white">김민수 (010-1234-5678)</strong></div>
+              <div class="flex justify-between py-1"><span class="text-slate-400">주거 환경</span><strong class="text-white">1인 가구, 아파트</strong></div>
+            </div>
+          </div>
+
+          <div class="bg-blue-950/50 border border-blue-500/40 p-4 rounded-xl space-y-2.5">
+            <div class="flex items-center gap-1.5 text-blue-400 font-bold text-xs">
+              <span>🤖 Upstage Solar LLM 생성 모델</span>
+            </div>
+            <p class="text-xs text-slate-300 leading-relaxed font-light">
+              "바오의 <strong class="text-white">분리불안 특성</strong>과 김민수 님의 <strong class="text-white">1인 가구 환경</strong>을 AI가 분석하여, 일반 서약서에는 없는 <strong class="text-orange-400">'제2조 행동 교정 특약'</strong> 및 <strong class="text-green-400">'제3조 CLM 사후관리 협조'</strong> 조항을 작성합니다."
+            </p>
+            <button onclick="generateAIClause()" id="aiBtn" class="w-full mt-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs py-2.5 rounded-lg transition flex justify-center items-center gap-1 shadow">
+              <span>⚡ Upstage AI 맞춤 조항 실시간 생성하기</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 우측: 계약서 본문 및 조율 영역 -->
+        <div class="col-span-8 bg-slate-800 p-6 rounded-xl border border-slate-700 flex flex-col justify-between">
+          <div class="space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+              <div>
+                <h3 class="font-bold text-lg text-white">📑 [포에버웨이] 유기동물 책임 입양 계약서 원본</h3>
+                <span class="text-xs text-slate-400">계약서 ID: #MD-20260728-001 | 법적 효력: 전자서명법 제3조 규정 준수</span>
+              </div>
+              <span class="text-[11px] bg-slate-900 text-slate-400 px-2.5 py-1 rounded border border-slate-700 font-mono">모두싸인 API 양식</span>
+            </div>
+
+            <!-- 계약서 본문 (스크롤) -->
+            <div class="bg-slate-900 p-5 rounded-xl border border-slate-700/80 max-h-64 overflow-y-auto space-y-3.5 text-xs text-slate-300 font-light leading-relaxed">
+              <p class="text-slate-500 font-mono">// 기본 약관: 동물보호법 준수 및 카라(KARA) 입양 동의서 규정 기반</p>
+              
+              <div>
+                <strong class="text-white font-semibold block">제1조 (평생 책임 및 양도·유기 금지)</strong>
+                <span>입양자 김민수는 입양 동물 '바오'가 자연사할 때까지 안전하고 적합한 사육 환경을 제공할 것을 서약하며, 어떠한 경우에도 임의 양도, 매매, 유기 행위를 하지 않는다. 위반 시 민·형사상 법적 책임을 진다.</span>
+              </div>
+
+              <!-- AI 생성 영역 -->
+              <div id="aiClauseArea" class="bg-blue-950/40 border-l-4 border-blue-500 p-3.5 rounded transition duration-500">
+                <div class="flex items-center gap-1 text-[11px] font-bold text-blue-400 mb-1">
+                  <span>🤖 Upstage AI 실시간 생성 영역 (특약 조항)</span>
+                </div>
+                <strong class="text-orange-300 font-semibold block">제2조 (특별 행동 교정 의무 - 분리불안 완화)</strong>
+                <span id="aiClauseText" class="text-slate-400 italic">👈 좌측의 [⚡ Upstage AI 실시간 생성하기] 버튼을 누르면 바오 맞춤형 행동 교정 특약 조항이 이곳에 작성됩니다.</span>
+              </div>
+
+              <div>
+                <strong class="text-white font-semibold block">제3조 (CLM 라이프사이클 사후관리 협조)</strong>
+                <span>입양자는 계약 체결 이후 카카오톡 알림톡으로 발송되는 정기 모니터링(D+30일, 3개월 등) 요청에 안부 사진과 건강 상태를 제출하여, 플랫폼의 CLM(계약 생애주기 관리) 아카이브에 성실히 협조해야 한다.</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 하단 동의 및 서명 호출 -->
+          <div class="mt-6 pt-4 border-t border-slate-700 space-y-4">
+            <label class="flex items-center gap-2.5 text-sm text-slate-200 cursor-pointer bg-slate-900/60 p-3.5 rounded-lg border border-slate-700 hover:bg-slate-900 transition">
+              <input type="checkbox" id="agreeCheck" checked class="w-4 h-4 rounded bg-slate-800 border-slate-600 text-blue-600 focus:ring-0">
+              <span class="font-medium">☑ 위 맞춤 책임 조항 및 모두싸인 전자서명의 법적 구속력을 확인했으며 이에 동의합니다.</span>
+            </label>
+
+            <button onclick="openModusignModal()" class="w-full bg-orange-600 hover:bg-orange-500 text-white font-bold text-base py-4 rounded-xl shadow-lg hover:shadow-orange-500/30 transition flex justify-center items-center gap-2">
+              <span>✍️ 모두싸인 API 전자서명 진행하기 (현장 체결)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==========================================
+         View 5. 입양관리 (리스크 신호 알림 & CLM)
+         ========================================== -->
+    <section id="view5" class="view-section space-y-6">
+      
+      <!-- 상단 위급 알람 배너 (페이지 이동 없이 눈에 띄게 표시) -->
+      <div id="urgentAlertBar" class="bg-red-950/80 border-2 border-red-500 p-4 rounded-xl flex justify-between items-center shadow-xl animate-pulse">
+        <div class="flex items-center gap-3">
+          <span class="text-2xl">🚨</span>
+          <div>
+            <h3 class="font-extrabold text-white text-sm">보호소 조치 필요 개체 긴급 알람 (Upstage AI 감지)</h3>
+            <p class="text-xs text-red-200">현재 <strong class="text-white underline">위협 1마리</strong>, <strong class="text-white underline">경고 2마리</strong>가 인증 기한 초과 또는 연락 두절 상태입니다. 조치를 취해 주세요!</p>
+          </div>
+        </div>
+        <button onclick="filterRisk('위협')" class="bg-red-600 hover:bg-red-500 text-white font-bold text-xs px-4 py-2 rounded-lg shadow border border-red-400">
+          👉 위급 개체만 필터링 보기
+        </button>
+      </div>
+
+      <div class="flex justify-between items-end border-b border-slate-800 pb-4">
+        <div>
+          <span class="text-green-400 font-bold text-xs font-mono flex items-center gap-1">
+            <span>ADOPTION MANAGEMENT & CLM</span>
+            <span class="bg-green-500/20 text-green-300 border border-green-500/30 px-2 py-0.2 rounded text-[10px]">★ 특별상 평가 핵심</span>
+          </span>
+          <h2 class="text-2xl font-bold text-white mt-1">입양관리 (리스크 신호 알림 & CLM 사후관리)</h2>
+        </div>
+        
+        <!-- 시연용 치트키 버튼 -->
+        <button onclick="simulateD30Feed()" id="simBtn" class="glow-btn bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-5 py-3 rounded-xl shadow-xl transition flex items-center gap-2 border border-blue-400">
+          <span class="text-base">🕒</span>
+          <span class="text-sm">👉 [바오 D+30일 안부 인증 시뮬레이션]</span>
+        </button>
+      </div>
+
+      <!-- 상태 필터 탭 & 전체 발송 버튼 -->
+      <div class="flex justify-between items-center bg-slate-800/80 p-3 rounded-xl border border-slate-700">
+        <div class="flex gap-1.5 text-xs font-bold" id="riskTabs">
+          <button onclick="filterRisk('전체')" class="tab-btn active bg-slate-700 text-white px-3.5 py-1.5 rounded-lg border border-slate-600">전체 (5)</button>
+          <button onclick="filterRisk('위협')" class="tab-btn bg-red-950/60 text-red-400 hover:text-white px-3.5 py-1.5 rounded-lg border border-red-500/30">🔴 위협 (1)</button>
+          <button onclick="filterRisk('경고')" class="tab-btn bg-orange-950/60 text-orange-400 hover:text-white px-3.5 py-1.5 rounded-lg border border-orange-500/30">🟠 경고 (2)</button>
+          <button onclick="filterRisk('주의')" class="tab-btn bg-yellow-950/60 text-yellow-400 hover:text-white px-3.5 py-1.5 rounded-lg border border-yellow-500/30">🟡 주의 (1)</button>
+          <button onclick="filterRisk('정상')" class="tab-btn bg-green-950/60 text-green-400 hover:text-white px-3.5 py-1.5 rounded-lg border border-green-500/30">🟢 정상 (1)</button>
+        </div>
+
+        <button onclick="alert('🔔 [전체 알림 발송 완] 현재 리스트의 모든 입양자에게 카카오톡 알림톡으로 안부 요청을 일괄 전송했습니다.')" class="bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold text-xs px-4 py-2 rounded-lg transition border border-slate-600 flex items-center gap-1">
+          <span>🔔 전체 보호소 알림 발송</span>
+        </button>
+      </div>
+
+      <!-- 리스크 신호 알림 리스트 표 -->
+      <div class="bg-slate-800/80 border border-slate-700 rounded-xl overflow-hidden shadow-2xl">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-900/90 text-slate-400 text-xs font-bold border-b border-slate-700">
+              <th class="p-4 w-20">위험도</th>
+              <th class="p-4">입양자</th>
+              <th class="p-4">반려동물</th>
+              <th class="p-4">마지막 인증일</th>
+              <th class="p-4">경과일</th>
+              <th class="p-4 text-center">보호소 조치 및 타임라인 확인</th>
+            </tr>
+          </thead>
+          <tbody id="riskTableBody" class="divide-y divide-slate-700/60 text-xs text-slate-200 font-medium">
+            
+            <!-- 1. 최유진 (위협) -->
+            <tr class="hover:bg-slate-700/40 transition risk-row bg-red-950/20" data-risk="위협">
+              <td class="p-4"><span class="bg-red-500/20 text-red-400 border border-red-500/40 font-bold px-2.5 py-1 rounded-full">🔴 위협</span></td>
+              <td class="p-4 font-bold text-white">최유진</td>
+              <td class="p-4">보리 (골든리트리버)</td>
+              <td class="p-4 font-mono text-slate-400">2026.07.15</td>
+              <td class="p-4 font-bold text-red-400">12일 초과</td>
+              <td class="p-4 flex justify-center gap-2">
+                <button onclick="callAdopter('최유진', '010-9988-7766')" class="bg-red-600 hover:bg-red-500 text-white px-3 py-1.5 rounded-md font-bold shadow transition">📞 연락하기</button>
+                <button onclick="openTimelineModal('보리', '최유진', '위협')" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-md border border-slate-600 transition">📋 대시보드(타임라인)</button>
+              </td>
+            </tr>
+
+            <!-- 2. 한소희 (경고) -->
+            <tr class="hover:bg-slate-700/40 transition risk-row bg-orange-950/10" data-risk="경고">
+              <td class="p-4"><span class="bg-orange-500/20 text-orange-400 border border-orange-500/40 font-bold px-2.5 py-1 rounded-full">🟠 경고</span></td>
+              <td class="p-4 font-bold text-white">한소희</td>
+              <td class="p-4">깜비 (고양이)</td>
+              <td class="p-4 font-mono text-slate-400">2026.07.19</td>
+              <td class="p-4 font-bold text-orange-400">8일 초과</td>
+              <td class="p-4 flex justify-center gap-2">
+                <button onclick="callAdopter('한소희', '010-5544-3322')" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-md border border-slate-600 transition font-bold">📞 연락하기</button>
+                <button onclick="openTimelineModal('깜비', '한소희', '경고')" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-md border border-slate-600 transition">📋 대시보드(타임라인)</button>
+              </td>
+            </tr>
+
+            <!-- 3. 오지호 (경고) -->
+            <tr class="hover:bg-slate-700/40 transition risk-row bg-orange-950/10" data-risk="경고">
+              <td class="p-4"><span class="bg-orange-500/20 text-orange-400 border border-orange-500/40 font-bold px-2.5 py-1 rounded-full">🟠 경고</span></td>
+              <td class="p-4 font-bold text-white">오지호</td>
+              <td class="p-4">두리 (푸들)</td>
+              <td class="p-4 font-mono text-slate-400">2026.07.20</td>
+              <td class="p-4 font-bold text-orange-400">7일 초과</td>
+              <td class="p-4 flex justify-center gap-2">
+                <button onclick="callAdopter('오지호', '010-1122-3344')" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-md border border-slate-600 transition font-bold">📞 연락하기</button>
+                <button onclick="openTimelineModal('두리', '오지호', '경고')" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-md border border-slate-600 transition">📋 대시보드(타임라인)</button>
+              </td>
+            </tr>
+
+            <!-- 4. 정우성 (주의) -->
+            <tr class="hover:bg-slate-700/40 transition risk-row" data-risk="주의">
+              <td class="p-4"><span class="bg-yellow-500/20 text-yellow-400 border border-yellow-500/40 font-bold px-2.5 py-1 rounded-full">🟡 주의</span></td>
+              <td class="p-4 font-bold text-white">정우성</td>
+              <td class="p-4">두부 (믹스견)</td>
+              <td class="p-4 font-mono text-slate-400">2026.07.22</td>
+              <td class="p-4 text-yellow-400">5일 초과</td>
+              <td class="p-4 flex justify-center gap-2">
+                <button onclick="callAdopter('정우성', '010-7788-9900')" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-md border border-slate-600 transition font-bold">📞 연락하기</button>
+                <button onclick="openTimelineModal('두부', '정우성', '주의')" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-md border border-slate-600 transition">📋 대시보드(타임라인)</button>
+              </td>
+            </tr>
+
+            <!-- 5. 김민지 (정상 - 바오 데모 연동) -->
+            <tr id="baoRow" class="hover:bg-slate-700/40 transition risk-row bg-green-950/10" data-risk="정상">
+              <td class="p-4"><span id="baoBadge" class="bg-green-500/20 text-green-400 border border-green-500/40 font-bold px-2.5 py-1 rounded-full">🟢 정상</span></td>
+              <td class="p-4 font-bold text-white">김민지 (김민수)</td>
+              <td class="p-4 font-bold text-blue-400">바오 (믹스견) ★</td>
+              <td class="p-4 font-mono text-slate-400" id="baoDate">2026.08.04</td>
+              <td class="p-4 text-green-400 font-bold" id="baoDays">정상 (대기중)</td>
+              <td class="p-4 flex justify-center gap-2">
+                <button onclick="callAdopter('김민수', '010-1234-5678')" class="bg-slate-700 hover:bg-slate-600 text-slate-200 px-3 py-1.5 rounded-md border border-slate-600 transition font-bold">📞 연락하기</button>
+                <button onclick="openTimelineModal('바오', '김민수', '정상')" class="bg-blue-600 hover:bg-blue-500 text-white font-bold px-3 py-1.5 rounded-md shadow transition">📋 대시보드(타임라인)</button>
+              </td>
+            </tr>
+
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ==========================================
+       [모달 1] 신규 동물 등록 (AI 특성 선택)
+       ========================================== -->
+  <div id="regModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-fadeIn">
+      <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+        <h3 class="font-bold text-white text-base flex items-center gap-1.5">
+          <span>🐶 신규 유기동물 등록</span>
+          <span class="text-xs bg-blue-600 text-white px-2 py-0.5 rounded font-normal">AI 특성 태그 연동</span>
+        </h3>
+        <button onclick="closeRegModal()" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="font-bold text-slate-300 block mb-1">동물 이름 / 추정 나이 / 품종</label>
+          <div class="grid grid-cols-3 gap-2">
+            <input type="text" placeholder="예: 멍이" class="bg-slate-900 border border-slate-700 rounded p-2 text-white">
+            <input type="text" placeholder="예: 2살" class="bg-slate-900 border border-slate-700 rounded p-2 text-white">
+            <input type="text" placeholder="예: 말티즈" class="bg-slate-900 border border-slate-700 rounded p-2 text-white">
+          </div>
+        </div>
+
+        <div>
+          <label class="font-bold text-blue-400 block mb-1">🤖 AI 계약서 조율용 행동/건강 특성 선택 (중요)</label>
+          <div class="bg-slate-900 p-3 rounded-xl border border-slate-700 grid grid-cols-2 gap-2 text-slate-300">
+            <label class="flex items-center gap-1.5"><input type="checkbox" checked class="rounded bg-slate-800 border-slate-600 text-blue-600"> 심한 분리불안 있음</label>
+            <label class="flex items-center gap-1.5"><input type="checkbox" class="rounded bg-slate-800 border-slate-600 text-blue-600"> 실외 배변 선호</label>
+            <label class="flex items-center gap-1.5"><input type="checkbox" class="rounded bg-slate-800 border-slate-600 text-blue-600"> 입질/헛짖음 약간</label>
+            <label class="flex items-center gap-1.5"><input type="checkbox" class="rounded bg-slate-800 border-slate-600 text-blue-600"> 슬개골/관절 주의</label>
+          </div>
+        </div>
+      </div>
+
+      <div class="pt-2 flex gap-2">
+        <button onclick="closeRegModal()" class="flex-1 bg-slate-700 hover:bg-slate-600 text-slate-300 font-bold py-2.5 rounded-xl text-xs transition">취소</button>
+        <button onclick="alert('신규 동물이 등록되었습니다! (MVP 시연은 기존 [바오] 카드를 활용합니다.)'); closeRegModal();" class="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-xl text-xs shadow transition">등록 완결</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       [모달 2] 모두싸인 전자서명 & 완료 팝업
+       ========================================== -->
+  <div id="modusignModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex justify-center items-center p-4">
+    <!-- 서명 패드 창 -->
+    <div id="signStep" class="bg-slate-800 border border-slate-600 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-fadeIn">
+      <div class="flex justify-between items-center border-b border-slate-700 pb-3">
+        <div class="flex items-center gap-2">
+          <span class="bg-blue-600 text-white font-bold text-xs px-2 py-0.5 rounded">MODUSIGN API</span>
+          <h3 class="font-bold text-white text-base">전자서명 진행 (현장 체결)</h3>
+        </div>
+        <button onclick="closeModal()" class="text-slate-400 hover:text-white text-lg font-bold">&times;</button>
+      </div>
+
+      <div class="bg-slate-900 p-4 rounded-xl border border-slate-700 text-xs space-y-1.5 text-slate-300">
+        <div><span class="text-slate-500">문서명:</span> <strong class="text-white">[포에버웨이] 유기동물 책임 입양 계약서 (#MD-001)</strong></div>
+        <div><span class="text-slate-500">서명자:</span> <strong class="text-white">김민수 (입양자)</strong> | 이매니저 (보호소 대표)</div>
+      </div>
+
+      <div class="space-y-1.5">
+        <label class="text-xs font-bold text-slate-300 block">✍️ 아래 영역에 마우스(또는 손가락)로 서명해 주세요:</label>
+        <div onclick="drawSign()" id="signPad" class="w-full h-36 bg-slate-900 border-2 border-dashed border-slate-600 rounded-xl flex flex-col justify-center items-center cursor-pointer hover:border-blue-400 transition relative overflow-hidden select-none">
+          <span id="signPlaceholder" class="text-xs text-slate-500">이곳을 클릭하면 서명이 입력됩니다.</span>
+          <span id="signDoneText" class="text-2xl font-extrabold text-blue-400 italic tracking-wider hidden animate-pulse">MinSoo Kim (서명완료)</span>
+        </div>
+      </div>
+
+      <button onclick="completeContract()" id="signCompleteBtn" disabled class="w-full bg-slate-700 text-slate-400 font-bold py-3.5 rounded-xl transition text-sm cursor-not-allowed">
+        서명을 입력해 주세요
+      </button>
+    </div>
+
+    <!-- 완료 축하 팝업 창 -->
+    <div id="successStep" class="bg-slate-800 border-2 border-green-500 rounded-3xl max-w-md w-full p-8 shadow-2xl text-center space-y-5 hidden animate-fadeIn">
+      <div class="w-16 h-16 bg-green-500/20 text-green-400 rounded-full flex items-center justify-center mx-auto text-3xl shadow-inner animate-bounce">🎉</div>
+      <div>
+        <span class="bg-green-500/20 text-green-400 border border-green-500/30 text-xs font-bold px-3 py-1 rounded-full">MODUSIGN SIGNED</span>
+        <h3 class="text-2xl font-extrabold text-white mt-2">입양·위탁 책임 계약 완료!</h3>
+        <p class="text-xs text-slate-300 mt-1.5 font-light">김민수 님과 바오의 소중한 인연이 법적 계약으로 맺어졌습니다.</p>
+      </div>
+
+      <div class="bg-slate-900 p-4 rounded-xl border border-slate-700/80 text-left text-xs space-y-1.5 text-slate-300 font-mono">
+        <div>🔒 <span class="text-slate-500">계약서 보관:</span> 모두싸인 캐비닛 DB 자동 아카이빙</div>
+        <div>📱 <span class="text-slate-500">사후관리 설정:</span> <strong>D+30일 차 모니터링 알림 설정 완</strong></div>
+        <div>🤖 <span class="text-slate-500">AI 에이전트:</span> 리스크 알람 대시보드 연동 완료</div>
+      </div>
+
+      <button onclick="goToView5()" class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3.5 rounded-xl shadow-lg transition text-sm flex justify-center items-center gap-1.5">
+        <span>👉 입양관리 (CLM 대시보드) 보러가기</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==========================================
+       [모달 3] ★ 타임라인(대시보드) 상세 팝업 창
+       ========================================== -->
+  <div id="timelineModal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden flex justify-center items-center p-4">
+    <div class="bg-slate-800 border border-slate-600 rounded-3xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-fadeIn">
+      
+      <!-- 팝업 헤더 -->
+      <div class="bg-slate-900 px-6 py-4 border-b border-slate-700 flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-3">
+          <span class="text-2xl">📋</span>
+          <div>
+            <h3 class="font-extrabold text-white text-lg flex items-center gap-2">
+              <span id="modalTitle">바오 & 김민수 CLM 라이프사이클 대시보드</span>
+              <span id="modalRiskBadge" class="bg-green-500/20 text-green-400 border border-green-500/40 text-xs px-2.5 py-0.5 rounded-full font-bold">🟢 정상</span>
+            </h3>
+            <p class="text-xs text-slate-400">모두싸인 계약서 원본 보관 내역 및 인스타그램 피드형 사후관리 타임라인</p>
+          </div>
+        </div>
+        <button onclick="closeTimelineModal()" class="text-slate-400 hover:text-white text-2xl font-bold px-2">&times;</button>
+      </div>
+
+      <!-- 팝업 컨텐츠 (스크롤 가능 영역) -->
+      <div class="p-6 overflow-y-auto space-y-6 flex-1">
+        
+        <!-- 1. 상단 고정: 모두싸인 서명 완결 원본 -->
+        <div class="bg-slate-900 border-2 border-blue-500/60 p-4 rounded-xl shadow-lg relative overflow-hidden">
+          <div class="absolute top-0 right-0 bg-blue-600 text-white font-bold text-[10px] px-3 py-1 rounded-bl-lg">
+            📑 모두싸인 전자서명 완결 원본 (캐비닛 연동)
+          </div>
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center font-bold text-lg">✍️</div>
+              <div>
+                <div class="font-bold text-white text-sm" id="modalContractText">입양 계약 원본 ID: #MD-20260728-001</div>
+                <div class="text-xs text-slate-400 mt-0.5">체결일: 2026.07.28 | 법적 증빙 해시: <span class="font-mono text-slate-300">8f9d2a11c49b...</span></div>
+              </div>
+            </div>
+            <button onclick="alert('🔔 안부 인증 추가 요청 알림톡이 전송되었습니다.')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+              🔔 안부 요청 콕 찔러보기
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. 인스타 피드 타임라인 영역 -->
+        <div>
+          <div class="flex justify-between items-center mb-3">
+            <span class="text-xs font-bold text-slate-400">⬇️ 사후관리 돌봄 타임라인 피드 (최신순 아카이빙)</span>
+            <span class="text-xs text-slate-500 font-mono">// Upstage AI 상태 진단 기록</span>
+          </div>
+
+          <!-- 타임라인 카드들이 들어가는 곳 -->
+          <div id="modalFeedContent" class="space-y-4">
+            <!-- 기본 카드 (JS에서 대상에 맞게 렌더링됨) -->
+          </div>
+        </div>
+
+      </div>
+
+      <!-- 팝업 푸터 -->
+      <div class="bg-slate-900/80 px-6 py-3 border-t border-slate-700 flex justify-end gap-3 shrink-0">
+        <button onclick="closeTimelineModal()" class="bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold px-5 py-2 rounded-xl text-xs transition">닫기</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- JS 로직 -->
+  <script>
+    // ★ 뷰 전환 컨트롤러 (GNB 하이라이트 로직 개선)
+    function showView(viewId) {
+      document.querySelectorAll('.view-section').forEach(sec => sec.classList.remove('active'));
+      document.getElementById(viewId).classList.add('active');
+      
+      // 대메뉴(GNB) 하이라이트 조정
+      document.querySelectorAll('header button').forEach(btn => {
+        btn.classList.replace('text-blue-400', 'text-slate-400');
+        btn.classList.replace('bg-slate-900', 'bg-transparent');
+      });
+
+      // View 1, 2, 3은 '홈(동물목록)' 흐름이므로 nav-view1 하이라이트
+      if(viewId === 'view1' || viewId === 'view2' || viewId === 'view3') {
+        const nav1 = document.getElementById('nav-view1');
+        nav1.classList.replace('text-slate-400', 'text-blue-400');
+        nav1.classList.add('bg-slate-900');
+      } else if(viewId === 'view5') {
+        const nav5 = document.getElementById('nav-view5');
+        nav5.classList.replace('text-slate-400', 'text-blue-400');
+        nav5.classList.add('bg-slate-900');
+      }
+      window.scrollTo({top: 0, behavior: 'smooth'});
+    }
+
+    // 모달 제어
+    function openRegModal() { document.getElementById('regModal').classList.remove('hidden'); }
+    function closeRegModal() { document.getElementById('regModal').classList.add('hidden'); }
+    function closeModal() { document.getElementById('modusignModal').classList.add('hidden'); }
+    function closeTimelineModal() { document.getElementById('timelineModal').classList.add('hidden'); }
+
+    // AI 조항 생성
+    function generateAIClause() {
+      const area = document.getElementById('aiClauseArea');
+      const text = document.getElementById('aiClauseText');
+      const btn = document.getElementById('aiBtn');
+      
+      btn.innerHTML = "⏳ Upstage Solar LLM 추론 및 생성 중...";
+      btn.disabled = true;
+      area.classList.add('bg-blue-900/60');
+
+      setTimeout(() => {
+        text.innerHTML = "<strong class='text-white'>[⚡ Upstage AI 맞춤 드래프트 완]</strong> 입양 동물 '바오'의 심한 분리불안 해소를 위해, 입양자 김민수는 입양 후 최소 3개월간 보호소에서 제공하는 행동 교정 훈련 지침을 성실히 이행하고 주거지 내 현관 방묘문 열림 및 탈출에 각별히 주의해야 한다.";
+        area.classList.replace('border-blue-500', 'border-orange-500');
+        area.classList.replace('bg-blue-900/60', 'bg-orange-950/50');
+        btn.innerHTML = "✅ Upstage AI 맞춤 조항 드래프트 완료!";
+        btn.classList.replace('bg-blue-600', 'bg-slate-700');
+      }, 700);
+    }
+
+    // 모두싸인 연동
+    function openModusignModal() {
+      if(!document.getElementById('agreeCheck').checked) {
+        alert("계약 약관 확인 체크박스에 동의해 주세요!");
+        return;
+      }
+      document.getElementById('modusignModal').classList.remove('hidden');
+      document.getElementById('signStep').classList.remove('hidden');
+      document.getElementById('successStep').classList.add('hidden');
+    }
+
+    function drawSign() {
+      document.getElementById('signPlaceholder').classList.add('hidden');
+      document.getElementById('signDoneText').classList.remove('hidden');
+      document.getElementById('signPad').classList.replace('border-slate-600', 'border-blue-500');
+      document.getElementById('signPad').classList.add('bg-blue-950/20');
+      
+      const btn = document.getElementById('signCompleteBtn');
+      btn.disabled = false;
+      btn.classList.replace('bg-slate-700', 'bg-blue-600');
+      btn.classList.replace('text-slate-400', 'text-white');
+      btn.classList.replace('cursor-not-allowed', 'cursor-pointer');
+      btn.innerHTML = "✍️ 전자서명 완료 및 체결하기";
+    }
+
+    function completeContract() {
+      document.getElementById('signStep').classList.add('hidden');
+      document.getElementById('successStep').classList.remove('hidden');
+    }
+
+    function goToView5() {
+      closeModal();
+      showView('view5');
+    }
+
+    function callAdopter(name, phone) {
+      if(confirm(`📞 ${name} 입양자님(${phone})에게 다이렉트 통화를 연결하거나 카카오톡 상담 채널로 이동하시겠습니까?`)) {
+        alert("📱 통화/상담 연결 중... (모바일 디바이스에서는 실제 전화 앱으로 연결됩니다.)");
+      }
+    }
+
+    // 리스크 필터링
+    function filterRisk(riskType) {
+      document.querySelectorAll('#riskTabs button').forEach(btn => {
+        btn.classList.remove('ring-2', 'ring-white', 'font-extrabold');
+      });
+      event.target.classList.add('ring-2', 'ring-white', 'font-extrabold');
+
+      const rows = document.querySelectorAll('.risk-row');
+      rows.forEach(row => {
+        if (riskType === '전체' || row.dataset.risk === riskType) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+
+      if(riskType === '위협') {
+        document.getElementById('urgentAlertBar').classList.add('bg-red-900');
+      } else {
+        document.getElementById('urgentAlertBar').classList.remove('bg-red-900');
+      }
+    }
+
+    // 대시보드(타임라인) 모달
+    function openTimelineModal(petName, adopterName, risk) {
+      document.getElementById('modalTitle').innerText = `${petName} & ${adopterName} CLM 라이프사이클 대시보드`;
+      document.getElementById('modalContractText').innerText = `입양 계약 원본 ID: #MD-${Math.floor(100000 + Math.random() * 900000)}`;
+      
+      const badge = document.getElementById('modalRiskBadge');
+      if (risk === '위협') {
+        badge.className = 'bg-red-500/20 text-red-400 border border-red-500/40 text-xs px-2.5 py-0.5 rounded-full font-bold';
+        badge.innerText = '🔴 위협 (12일 지연)';
+      } else if (risk === '경고') {
+        badge.className = 'bg-orange-500/20 text-orange-400 border border-orange-500/40 text-xs px-2.5 py-0.5 rounded-full font-bold';
+        badge.innerText = '🟠 경고 (8일 지연)';
+      } else {
+        badge.className = 'bg-green-500/20 text-green-400 border border-green-500/40 text-xs px-2.5 py-0.5 rounded-full font-bold';
+        badge.innerText = '🟢 정상';
+      }
+
+      const feedContent = document.getElementById('modalFeedContent');
+      
+      if (petName === '바오') {
+        feedContent.innerHTML = `
+          <div id="modalBaoNewCard"></div>
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-lg">
+            <div class="flex justify-between items-center mb-3 border-b border-slate-700/60 pb-2.5">
+              <div class="flex items-center gap-2">
+                <span class="w-7 h-7 rounded-full bg-slate-700 text-slate-300 flex items-center justify-center text-xs font-bold">👤</span>
+                <span class="font-bold text-sm text-white">${adopterName} 입양자</span>
+                <span class="text-xs text-slate-400">· D+7일 차 안부 보고</span>
+              </div>
+              <span class="bg-green-500/10 text-green-400 border border-green-500/20 text-xs px-2.5 py-1 rounded-full font-bold">🟢 AI 진단: 정상</span>
+            </div>
+            <div class="flex gap-4">
+              <img src="https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=400&q=80" class="w-32 h-20 rounded-lg object-cover border border-slate-700 shrink-0">
+              <p class="text-xs text-slate-300 font-light leading-relaxed">"입양 일주일째입니다! 거실로 나와서 장난감도 가지고 놀고 배변도 화장실에 잘 가고 있습니다 ^^"</p>
+            </div>
+          </div>
+        `;
+      } else if (risk === '위협') {
+        feedContent.innerHTML = `
+          <div class="bg-red-950/40 border-2 border-red-500/60 rounded-2xl p-5 shadow-lg">
+            <div class="flex justify-between items-center mb-3 border-b border-red-500/30 pb-2.5">
+              <span class="font-bold text-sm text-white">🚨 시스템 경고 (Upstage AI 리스크 에이전트)</span>
+              <span class="bg-red-500 text-white text-xs px-2.5 py-1 rounded-full font-bold">🔴 D+30 보고 미제출</span>
+            </div>
+            <p class="text-xs text-red-200 leading-relaxed">
+              * 정기 안부 인증 예정일로부터 <strong>12일이 초과</strong>되었습니다. 2회 이상의 자동 알림톡에 미응답 상태이므로 보호소 활동가의 직접 연락 또는 <strong>가정방문 절차</strong> 진행이 필요합니다.
+            </p>
+          </div>
+        `;
+      } else {
+        feedContent.innerHTML = `
+          <div class="bg-slate-800 border border-slate-700 rounded-2xl p-5 shadow-lg">
+            <p class="text-xs text-slate-400 text-center py-4">이전 주기(D+7) 정상 인증 완료 개체입니다. 현재 주기 보고 대기 중입니다.</p>
+          </div>
+        `;
+      }
+
+      document.getElementById('timelineModal').classList.remove('hidden');
+    }
+
+    // D+30일 차 안부 수신 시뮬레이션
+    function simulateD30Feed() {
+      const btn = document.getElementById('simBtn');
+      const baoRow = document.getElementById('baoRow');
+      const baoBadge = document.getElementById('baoBadge');
+      const baoDate = document.getElementById('baoDate');
+      const baoDays = document.getElementById('baoDays');
+
+      baoRow.classList.replace('bg-green-950/10', 'bg-blue-950/30');
+      baoRow.classList.add('ring-2', 'ring-blue-500');
+      baoBadge.className = 'bg-blue-500/20 text-blue-400 border border-blue-500/40 font-bold px-2.5 py-1 rounded-full animate-bounce';
+      baoBadge.innerText = '🔵 신규응답';
+      baoDate.innerText = '방금 전 (오늘)';
+      baoDays.className = 'p-4 text-blue-400 font-bold';
+      baoDays.innerText = 'D+30 인증완료!';
+
+      btn.innerHTML = "✅ 바오 D+30 인증 피드 업데이트 완!";
+      btn.classList.replace('bg-blue-600', 'bg-slate-700');
+      btn.classList.remove('glow-btn');
+      btn.disabled = true;
+
+      alert("🔔 [시뮬레이션 작동] 김민수 님이 바오의 D+30일 차 안부 사진을 제출했습니다!\n리스트의 [📋 대시보드(타임라인)] 버튼을 클릭해서 인스타 피드에 카드가 추가된 것을 확인해 보세요!");
+      
+      window.baoSimulated = true;
+    }
+
+    const originalOpenTimeline = openTimelineModal;
+    openTimelineModal = function(petName, adopterName, risk) {
+      originalOpenTimeline(petName, adopterName, risk);
+      if (petName === '바오' && window.baoSimulated) {
+        const newCardArea = document.getElementById('modalBaoNewCard');
+        if (newCardArea) {
+          newCardArea.innerHTML = `
+            <div class="bg-slate-800 border-2 border-green-500/80 rounded-2xl p-5 shadow-2xl relative mb-4 animate-fadeIn">
+              <div class="absolute -left-2 top-6 w-3 h-3 rounded-full bg-green-500 animate-ping"></div>
+              <div class="flex justify-between items-center mb-3 border-b border-slate-700/60 pb-2.5">
+                <div class="flex items-center gap-2">
+                  <span class="w-7 h-7 rounded-full bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs font-bold">👤</span>
+                  <span class="font-bold text-sm text-white">김민수 입양자</span>
+                  <span class="text-xs text-blue-400 font-semibold">· D+30일 차 안부 보고 (방금 도착!)</span>
+                </div>
+                <span class="bg-green-500/20 text-green-300 border border-green-500/40 text-xs px-2.5 py-1 rounded-full font-bold">🟢 AI 진단: 정상 (분리불안 완화)</span>
+              </div>
+              <div class="flex gap-4">
+                <img src="https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=400&q=80" class="w-36 h-24 rounded-lg object-cover border border-slate-700 shrink-0">
+                <div class="flex flex-col justify-between text-xs">
+                  <p class="text-slate-200 font-normal leading-relaxed">"벌써 한 달이네요! 우려했던 분리불안은 AI가 계약서에서 안내해준 행동 지침대로 훈련했더니 거의 사라졌습니다. 혼자 얌전히 낮잠을 잘 자요 🐶💛"</p>
+                  <div class="text-green-400 font-mono mt-2 pt-1 border-t border-slate-700/60 font-semibold">✔ 식욕/배변/활동 정상 | 🔒 Audit: #CLM-0828-01</div>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+      }
+    };
+  </script>
+</body>
+</html>
