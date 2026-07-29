@@ -232,7 +232,7 @@ export function SignatureRequestForm() {
     <section className="grid gap-6 lg:grid-cols-[minmax(0,480px)_1fr]">
       <form
         onSubmit={handleSubmit}
-        className="space-y-5 rounded-lg border border-zinc-200 bg-white p-5"
+        className="space-y-5 rounded-lg border border-zinc-200 bg-foreground p-5"
       >
         <div>
           <h2 className="text-xl font-semibold text-zinc-950">
@@ -297,7 +297,7 @@ export function SignatureRequestForm() {
         ) : null}
 
         {selectedTemplate?.participants?.length ? (
-          <div className="rounded-md border border-zinc-200 bg-zinc-50 p-3">
+          <div className="rounded-md border border-zinc-200 bg-foreground p-3">
             <p className="text-sm font-medium text-zinc-700">템플릿 역할</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {selectedTemplate.participants.map((participant) => (
@@ -305,7 +305,7 @@ export function SignatureRequestForm() {
                   key={`${participant.role}-${participant.signingOrder}`}
                   type="button"
                   onClick={() => setRole(participant.role)}
-                  className="rounded-md border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:border-blue-300"
+                  className="rounded-md border border-zinc-200 bg-foreground px-3 py-1.5 text-sm text-zinc-700 hover:border-blue-300"
                 >
                   {participant.role}
                 </button>
@@ -354,7 +354,7 @@ export function SignatureRequestForm() {
           }
         />
 
-        <div className="space-y-3 rounded-md border border-zinc-200 bg-zinc-50 p-3">
+        <div className="space-y-3 rounded-md border border-zinc-200 bg-foreground p-3">
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold text-zinc-900">
@@ -367,7 +367,7 @@ export function SignatureRequestForm() {
             <button
               type="button"
               onClick={addInputMapping}
-              className="h-9 rounded-md border border-zinc-300 bg-white px-3 text-sm font-medium text-zinc-700"
+              className="h-9 rounded-md border border-zinc-300 bg-foreground px-3 text-sm font-medium text-zinc-700"
             >
               추가
             </button>
@@ -395,7 +395,7 @@ export function SignatureRequestForm() {
                 <button
                   type="button"
                   onClick={() => removeInputMapping(index)}
-                  className="h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm text-zinc-600"
+                  className="h-10 rounded-md border border-zinc-300 bg-foreground px-3 text-sm text-zinc-600"
                 >
                   삭제
                 </button>
@@ -413,7 +413,7 @@ export function SignatureRequestForm() {
         </button>
       </form>
 
-      <div className="rounded-lg border border-zinc-200 bg-white p-5">
+      <div className="rounded-lg border border-zinc-200 bg-foreground p-5">
         <h2 className="text-xl font-semibold text-zinc-950">응답 결과</h2>
         {!response ? (
           <p className="mt-4 text-sm leading-6 text-zinc-500">
@@ -426,7 +426,7 @@ export function SignatureRequestForm() {
           <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-4">
             <p className="font-medium text-red-900">{response.message}</p>
             {response.modusignError ? (
-              <pre className="mt-3 overflow-auto rounded bg-white p-3 text-xs text-red-800">
+              <pre className="mt-3 overflow-auto rounded bg-foreground p-3 text-xs text-red-800">
                 {JSON.stringify(response.modusignError, null, 2)}
               </pre>
             ) : null}
@@ -453,7 +453,7 @@ function MethodButton({
       className={`h-10 rounded-md border px-3 text-sm font-medium ${
         active
           ? "border-blue-600 bg-blue-50 text-blue-700"
-          : "border-zinc-300 bg-white text-zinc-700"
+          : "border-zinc-300 bg-foreground text-zinc-700"
       }`}
     >
       {label}

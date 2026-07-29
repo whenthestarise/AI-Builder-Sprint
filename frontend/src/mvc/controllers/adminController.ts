@@ -3,13 +3,13 @@ import {
   contracts,
   pets,
   timelineEvents,
-} from "@/models/adminModel";
+} from "@/mvc/models/adminModel";
 
 export function getDashboardViewModel() {
   return {
     stats: {
       totalPets: pets.length,
-      waitingPets: pets.filter((pet) => pet.status !== "risk").length,
+      waitingPets: pets.filter((pet) => pet.status === "available").length,
       applications: applications.length,
       urgentRisks: contracts.filter((contract) => contract.risk === "urgent")
         .length,
@@ -29,6 +29,7 @@ export function getManageViewModel() {
 export function getRiskViewModel() {
   return {
     contracts,
+    applicantPhone: applications[0].phone,
     timelineEvents,
   };
 }

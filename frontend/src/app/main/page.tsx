@@ -1,5 +1,5 @@
-import { getDashboardViewModel } from "@/controllers/adminController";
-import { DashboardView } from "@/views/DashboardView";
+import { getDashboardViewModel } from "@/mvc/controllers/adminController";
+import { DashboardView } from "@/mvc/views/DashboardView";
 
 export default function MainPage() {
   return <DashboardView {...getDashboardViewModel()} />;

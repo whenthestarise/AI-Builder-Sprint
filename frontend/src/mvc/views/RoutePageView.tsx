@@ -72,7 +72,7 @@ export function RoutePageView({
             <Link
               key={route.href}
               href={route.href}
-              className="rounded-lg border border-zinc-200 bg-white p-5 transition hover:border-blue-300 hover:shadow-sm"
+              className="rounded-lg border border-zinc-200 bg-foreground p-5 transition hover:border-blue-300 hover:shadow-sm"
             >
               <h2 className="text-lg font-semibold text-zinc-950">
                 {route.title}

@@ -1,4 +1,4 @@
-import { getTodos } from "@/models/todoModel";
+import { getTodos } from "@/mvc/models/todoModel";
 
 export function getTodoViewModel() {
   const todos = getTodos();
