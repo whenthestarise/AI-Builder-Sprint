@@ -1,20 +1,18 @@
 from fastapi import APIRouter, HTTPException
 
-from pydantic import BaseModel
-
 from app.risk.repository import (
-    approve_certification,
     get_modal_view_model,
     get_risk_dashboard_view_model,
+    review_certification,
 )
-from app.risk.schemas import RiskDashboardResponse, RiskDashboardModalViewModel
+from app.risk.schemas import (
+    CertificationReviewRequest,
+    RiskDashboardModalViewModel,
+    RiskDashboardResponse,
+)
 
 
 router = APIRouter(prefix="/risk", tags=["Risk"])
-
-
-class CertificationApprovalRequest(BaseModel):
-    approvedStatus: str
 
 
 @router.get("/dashboard", response_model=RiskDashboardResponse)
@@ -26,8 +24,11 @@ def get_risk_dashboard() -> RiskDashboardResponse:
     "/contracts/{contract_id}/dashboard",
     response_model=RiskDashboardModalViewModel,
 )
-def get_contract_dashboard(contract_id: str) -> RiskDashboardModalViewModel:
+def get_contract_dashboard(
+    contract_id: str,
+) -> RiskDashboardModalViewModel:
     view_model = get_modal_view_model(contract_id)
+
     if not view_model.contract:
         raise HTTPException(status_code=404, detail="Contract not found.")
 
@@ -40,14 +41,20 @@ def get_contract_dashboard(contract_id: str) -> RiskDashboardModalViewModel:
 def approve_contract_certification(
     contract_id: str,
     certification_id: str,
-    payload: CertificationApprovalRequest,
+    payload: CertificationReviewRequest,
 ) -> dict[str, bool]:
-    approved = approve_certification(
-        contract_id,
-        certification_id,
-        payload.approvedStatus,
+    reviewed = review_certification(
+        contract_id=contract_id,
+        certification_id=certification_id,
+        approved_status=payload.approvedStatus,
+        manager_actions=payload.managerActions,
+        manager_comment=payload.managerComment,
     )
-    if not approved:
-        raise HTTPException(status_code=404, detail="Certification not found.")
+
+    if not reviewed:
+        raise HTTPException(
+            status_code=404,
+            detail="Certification not found.",
+        )
 
     return {"ok": True}

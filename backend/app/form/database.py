@@ -14,6 +14,24 @@ def get_connection() -> sqlite3.Connection:
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
+def ensure_column(
+    connection: sqlite3.Connection,
+    table_name: str,
+    column_name: str,
+    column_definition: str,
+) -> None:
+    columns = {
+        row["name"]
+        for row in connection.execute(
+            f"PRAGMA table_info({table_name})"
+        ).fetchall()
+    }
+
+    if column_name not in columns:
+        connection.execute(
+            f"ALTER TABLE {table_name} "
+            f"ADD COLUMN {column_name} {column_definition}"
+        )
 
 def initialize_database() -> None:
     with get_connection() as connection:
@@ -31,6 +49,7 @@ def initialize_database() -> None:
                 id TEXT PRIMARY KEY,
                 pet_id TEXT NOT NULL,
                 round INTEGER NOT NULL,
+                schedule_id TEXT,
                 sent_at TEXT,
                 submitted_at TEXT NOT NULL,
                 highest_risk TEXT NOT NULL,
@@ -43,6 +62,9 @@ def initialize_database() -> None:
                 body_symptoms_json TEXT NOT NULL,
                 text_inputs_json TEXT NOT NULL,
                 files_json TEXT NOT NULL,
+                manager_actions_json TEXT NOT NULL DEFAULT '[]',
+                manager_comment TEXT,
+                reviewed_at TEXT,
                 FOREIGN KEY (pet_id) REFERENCES pets(pet_id)
             );
 
@@ -50,18 +72,91 @@ def initialize_database() -> None:
                 id TEXT PRIMARY KEY,
                 pet_id TEXT NOT NULL,
                 round INTEGER NOT NULL,
+                schedule_id TEXT,
                 sent_at TEXT NOT NULL,
                 checked_at TEXT NOT NULL,
                 time_risk TEXT NOT NULL,
                 final_risk TEXT NOT NULL,
                 approval_status TEXT NOT NULL,
                 status_label TEXT NOT NULL,
+                manager_actions_json TEXT NOT NULL DEFAULT '[]',
+                manager_comment TEXT,
+                reviewed_at TEXT,
                 FOREIGN KEY (pet_id) REFERENCES pets(pet_id)
+            );
+
+             CREATE TABLE IF NOT EXISTS contracts (
+                contract_id TEXT PRIMARY KEY,
+                pet_id TEXT NOT NULL,
+                adopter_name TEXT NOT NULL,
+                status TEXT NOT NULL,
+                signed_at TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (pet_id) REFERENCES pets(pet_id)
+            );
+
+            CREATE TABLE IF NOT EXISTS monitoring_schedules (
+                schedule_id TEXT PRIMARY KEY,
+                contract_id TEXT NOT NULL,
+                round INTEGER NOT NULL,
+                scheduled_at TEXT NOT NULL,
+                status TEXT NOT NULL,
+                sent_at TEXT,
+                FOREIGN KEY (contract_id) REFERENCES contracts(contract_id),
+                UNIQUE (contract_id, round)
             );
             """
         )
 
+        ensure_column(
+            connection,
+            "certification_submissions",
+            "manager_actions_json",
+            "TEXT NOT NULL DEFAULT '[]'",
+        )
+        ensure_column(
+            connection,
+            "certification_submissions",
+            "manager_comment",
+            "TEXT",
+        )
+        ensure_column(
+            connection,
+            "certification_submissions",
+            "reviewed_at",
+            "TEXT",
+        )
 
+        ensure_column(
+            connection,
+            "missing_certifications",
+            "manager_actions_json",
+            "TEXT NOT NULL DEFAULT '[]'",
+        )
+        ensure_column(
+            connection,
+            "missing_certifications",
+            "manager_comment",
+            "TEXT",
+        )
+        ensure_column(
+            connection,
+            "missing_certifications",
+            "reviewed_at",
+            "TEXT",
+        )
+        ensure_column(
+            connection,
+            "certification_submissions",
+            "schedule_id",
+            "TEXT",
+        )
+        ensure_column(
+            connection,
+            "missing_certifications",
+            "schedule_id",
+            "TEXT",
+        )
 def dump_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False)
 

@@ -18,6 +18,7 @@ class CertificationFileMeta(BaseModel):
 
 class CertificationSubmissionCreate(BaseModel):
     petId: str | None = Field(default=None, max_length=80)
+    scheduleId: str | None = Field(default=None, max_length=80)
     round: CertificationRound
     petName: str = Field(min_length=1, max_length=50)
     adopterName: str | None = Field(default=None, max_length=50)
@@ -50,6 +51,7 @@ class CertificationSubmissionListResponse(BaseModel):
 
 class MissingCertificationCreate(BaseModel):
     petId: str | None = Field(default=None, max_length=80)
+    scheduleId: str | None = Field(default=None, max_length=80)
     round: CertificationRound
     petName: str = Field(min_length=1, max_length=50)
     adopterName: str | None = Field(default=None, max_length=50)

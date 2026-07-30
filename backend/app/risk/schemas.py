@@ -66,6 +66,7 @@ class RiskCertificationCard(BaseModel):
     answers: list[CertificationAnswer] = Field(default_factory=list)
     managerActions: list[str] | None = None
     managerComment: str | None = None
+    reviewedAt: str | None = None
 
 
 class RiskDashboardModalViewModel(BaseModel):
@@ -107,3 +108,11 @@ class RiskDashboardViewModel(BaseModel):
 
 class RiskDashboardResponse(BaseModel):
     data: RiskDashboardViewModel
+
+class CertificationReviewRequest(BaseModel):
+    approvedStatus: str = Field(min_length=1, max_length=50)
+    managerActions: list[str] = Field(default_factory=list, max_length=10)
+    managerComment: str | None = Field(
+        default=None,
+        max_length=500,
+    )
