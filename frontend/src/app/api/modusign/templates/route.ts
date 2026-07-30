@@ -4,11 +4,16 @@ import {
   ModusignApiError,
   getModusignTemplates,
 } from "@/lib/modusign/modusign.client";
+import type { ModusignTemplateResponse } from "@/lib/modusign/modusign.types";
 
 export async function GET() {
   try {
     const result = await getModusignTemplates({ limit: 20 });
-    const templates = result.templates ?? [];
+    const rawResult = result as typeof result & {
+      items?: ModusignTemplateResponse[];
+      data?: ModusignTemplateResponse[];
+    };
+    const templates = rawResult.templates ?? rawResult.items ?? rawResult.data ?? [];
 
     return NextResponse.json({
       ok: true,
