@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import type { Contract, TimelineEvent } from "@/mvc/models/adminModel";
+import { getRiskDashboardModalViewModel } from "@/mvc/controllers/adminController";
 import { AdminShell } from "@/mvc/views/AdminShell";
 import { RiskDashboardModal } from "@/mvc/views/RiskDashboardModal";
 
@@ -49,6 +50,9 @@ export function RiskView({
 }: RiskViewProps) {
   const [selectedContract, setSelectedContract] =
     useState<Contract | null>(null);
+
+  const riskDashboardModalViewModel =
+    getRiskDashboardModalViewModel(selectedContract?.id ?? null);
 
   const completedCount = contracts.filter((contract) =>
     isCompletedStatus(contract.status),
@@ -226,7 +230,10 @@ export function RiskView({
 
       <RiskDashboardModal
         applicantPhone={applicantPhone}
-        contract={selectedContract}
+        contract={riskDashboardModalViewModel.contract}
+        dashboardData={riskDashboardModalViewModel.dashboardData}
+        upcomingTimeline={riskDashboardModalViewModel.upcomingTimeline}
+        certificationCards={riskDashboardModalViewModel.certificationCards}
         onClose={() => setSelectedContract(null)}
       />
     </AdminShell>
