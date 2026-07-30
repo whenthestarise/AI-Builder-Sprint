@@ -53,8 +53,11 @@ type RoundMeta = {
 };
 
 export type CertificationSubmission = {
+  petId?: string;
   round: CertificationRound;
   petName: string;
+  adopterName?: string;
+  adoptionDate?: string;
   highestRisk: RiskLevel;
   answers: Record<string, string>;
   bodySymptoms: string[];
@@ -63,6 +66,7 @@ export type CertificationSubmission = {
 };
 
 type CertificationFormViewProps = {
+  petId?: string;
   round: CertificationRound;
   petName: string;
   adopterName?: string;
@@ -427,6 +431,7 @@ const roundRadioQuestions: Partial<
  * ======================================================= */
 
 export function CertificationFormView({
+  petId,
   round,
   petName,
   adopterName,
@@ -606,8 +611,11 @@ export function CertificationFormView({
 
     const submission: CertificationSubmission =
       {
+        petId,
         round,
         petName,
+        adopterName,
+        adoptionDate,
         highestRisk,
         answers,
         bodySymptoms,
@@ -622,8 +630,7 @@ export function CertificationFormView({
       if (onSubmit) {
         await onSubmit(submission);
       } else {
-        console.log(
-          "Certification submission",
+        await submitCertificationForm(
           submission,
         );
 
@@ -631,6 +638,8 @@ export function CertificationFormView({
           "안부 인증이 제출되었습니다.",
         );
       }
+
+      goBackAfterSubmission();
     } catch (error) {
       console.error(error);
 
@@ -1691,6 +1700,104 @@ function calculateHighestRisk(
         : highest,
     "green",
   );
+}
+
+async function submitCertificationForm(
+  submission: CertificationSubmission,
+) {
+  const response = await fetch(
+    `${getBackendBaseUrl()}/api/form/certifications/multipart`,
+    {
+      method: "POST",
+      body: createCertificationFormData(
+        submission,
+      ),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      "Certification form submission failed.",
+    );
+  }
+
+  return response.json();
+}
+
+function createCertificationFormData(
+  submission: CertificationSubmission,
+) {
+  const formData = new FormData();
+  const fileFieldIds: string[] = [];
+
+  formData.set(
+    "round",
+    String(submission.round),
+  );
+  formData.set("petName", submission.petName);
+
+  if (submission.petId) {
+    formData.set("petId", submission.petId);
+  }
+  formData.set(
+    "highestRisk",
+    submission.highestRisk,
+  );
+  formData.set(
+    "answers",
+    JSON.stringify(submission.answers),
+  );
+  formData.set(
+    "bodySymptoms",
+    JSON.stringify(submission.bodySymptoms),
+  );
+  formData.set(
+    "textInputs",
+    JSON.stringify(submission.textInputs),
+  );
+
+  if (submission.adopterName) {
+    formData.set(
+      "adopterName",
+      submission.adopterName,
+    );
+  }
+
+  if (submission.adoptionDate) {
+    formData.set(
+      "adoptionDate",
+      submission.adoptionDate,
+    );
+  }
+
+  for (const [fieldId, file] of Object.entries(
+    submission.files,
+  )) {
+    if (!file) {
+      continue;
+    }
+
+    fileFieldIds.push(fieldId);
+    formData.append("uploadedFiles", file);
+  }
+
+  formData.set(
+    "fileFieldIds",
+    JSON.stringify(fileFieldIds),
+  );
+
+  return formData;
+}
+
+function getBackendBaseUrl() {
+  return (
+    process.env.NEXT_PUBLIC_API_BASE_URL ??
+    "http://localhost:8000"
+  );
+}
+
+function goBackAfterSubmission() {
+  window.location.assign("/risk");
 }
 
 function useFilePreview(
