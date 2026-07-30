@@ -4,6 +4,7 @@ import type { CertificationRound } from "@/mvc/views/CertificationFormView";
 type CertificationPageProps = {
   searchParams?: Promise<{
     round?: string;
+    petId?: string;
     petName?: string;
     adopterName?: string;
     adoptionDate?: string;
@@ -17,9 +18,10 @@ export default async function CertificationPage({
 
   return (
     <CertificationFormView
+      petId={params?.petId}
       round={parseRound(params?.round)}
       petName={params?.petName ?? "바오"}
-      adopterName={params?.adopterName}
+      adopterName={params?.adopterName ?? "김민수"}
       adoptionDate={params?.adoptionDate}
     />
   );
