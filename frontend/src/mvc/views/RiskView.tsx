@@ -14,6 +14,30 @@ import type {
 import { AdminShell } from "@/mvc/views/AdminShell";
 import { RiskDashboardModal } from "@/mvc/views/RiskDashboardModal";
 
+declare global {
+  interface Window {
+    Kakao?: {
+      init: (key: string) => void;
+      isInitialized: () => boolean;
+      Share: {
+        sendDefault: (settings: {
+          objectType: "feed";
+          content: {
+            title: string;
+            description: string;
+            imageUrl: string;
+            link: { mobileWebUrl: string; webUrl: string };
+          };
+          buttons: Array<{
+            title: string;
+            link: { mobileWebUrl: string; webUrl: string };
+          }>;
+        }) => void;
+      };
+    };
+  }
+}
+
 type RiskViewProps = {
   contracts: Contract[];
   applicantPhone: string;
@@ -62,6 +86,9 @@ const text = {
   empty: "\uC0AC\uD6C4\uAD00\uB9AC \uC911\uC778 \uC785\uC591 \uACC4\uC57D\uC774 \uC5C6\uC2B5\uB2C8\uB2E4.",
   openDashboard: "\uB300\uC2DC\uBCF4\uB4DC \uC5F4\uB78C",
   call: "\uD1B5\uD654",
+  sendForm: "\uCE74\uCE74\uC624\uD1A1\uC73C\uB85C \uD3FC \uBCF4\uB0B4\uAE30",
+  targetPhone: "010-2422-4599",
+  openingKakao: "\uCE74\uCE74\uC624\uD1A1 \uC5EC\uB294 \uC911...",
   noPhone: "\uC5F0\uB77D\uCC98 \uC5C6\uC74C",
   approveDone: "\uC2B9\uC778 \uC644\uB8CC",
   approveAfterCheck: "\uD655\uC778 \uD6C4 \uC2B9\uC778\uC644\uB8CC",
@@ -244,7 +271,6 @@ export function RiskView({
                 {localContracts.map((contract, index) => (
                   <ContractRow
                     key={contract.id}
-                    applicantPhone={applicantPhone}
                     contract={contract}
                     fallbackRows={riskConfig.fallbackRows}
                     index={index}
@@ -279,18 +305,17 @@ export function RiskView({
 }
 
 function ContractRow({
-  applicantPhone,
   contract,
   fallbackRows,
   index,
   onOpenDashboard,
 }: {
-  applicantPhone: string;
   contract: Contract;
   fallbackRows: RiskConfig["fallbackRows"];
   index: number;
   onOpenDashboard: () => void;
 }) {
+  const [shareStatus, setShareStatus] = useState("");
   const extendedContract = contract as ExtendedContract;
   const fallback = fallbackRows[index % fallbackRows.length] ?? {
     adoptionDate: "",
@@ -309,7 +334,63 @@ function ContractRow({
     contract.nextCheck.includes("\uBBF8\uC81C\uCD9C") ||
     lastCertificationDate.includes("\uBBF8\uC81C\uCD9C");
   const isNormal = riskTone === "normal";
-  const phoneHref = applicantPhone ? `tel:${normalizePhone(applicantPhone)}` : undefined;
+  const normalizedPhone = normalizePhone(text.targetPhone);
+  const certificationHref = buildCertificationHref(contract, adoptionDate);
+
+  const handleShareForm = async () => {
+    if (!normalizedPhone) {
+      return;
+    }
+
+    setShareStatus(text.openingKakao);
+    try {
+      const kakao = await loadKakaoSdk();
+      const javascriptKey =
+        process.env.NEXT_PUBLIC_KAKAO_JAVASCRIPT_KEY?.trim();
+      if (!javascriptKey) {
+        throw new Error(
+          "frontend/.env.local\uC5D0 NEXT_PUBLIC_KAKAO_JAVASCRIPT_KEY\uB97C \uC785\uB825\uD574 \uC8FC\uC138\uC694.",
+        );
+      }
+
+      if (!kakao.isInitialized()) {
+        kakao.init(javascriptKey);
+      }
+
+      const formUrl = new URL(
+        certificationHref,
+        window.location.origin,
+      ).toString();
+      kakao.Share.sendDefault({
+        objectType: "feed",
+        content: {
+          title: `${contract.petName} \uC548\uBD80 \uC778\uC99D \uD3FC`,
+          description: `${contract.adopterName}\uB2D8, ${contract.petName}\uC758 \uC548\uBD80 \uC778\uC99D \uD3FC\uC744 \uC791\uC131\uD574 \uC8FC\uC138\uC694.`,
+          imageUrl: `${window.location.origin}/favicon.ico`,
+          link: {
+            mobileWebUrl: formUrl,
+            webUrl: formUrl,
+          },
+        },
+        buttons: [
+          {
+            title: "\uC778\uC99D \uD3FC \uC791\uC131\uD558\uAE30",
+            link: {
+              mobileWebUrl: formUrl,
+              webUrl: formUrl,
+            },
+          },
+        ],
+      });
+      setShareStatus("");
+    } catch (error) {
+      setShareStatus(
+        error instanceof Error
+          ? error.message
+          : "\uCE74\uCE74\uC624\uD1A1 \uBC1C\uC1A1\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4.",
+      );
+    }
+  };
 
   return (
     <tr className={["transition-colors", getRowBackground(riskTone)].join(" ")}>
@@ -346,7 +427,7 @@ function ContractRow({
             <span aria-hidden="true">▣</span><span className="break-keep">{text.openDashboard}</span>
           </button>
           {isMissingSubmission && (
-            <Link href={buildCertificationHref(contract, adoptionDate)} className="inline-flex h-7 items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50">
+            <Link href={certificationHref} className="inline-flex h-7 items-center justify-center rounded-md border border-slate-300 bg-white px-2 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50">
               {text.form}
             </Link>
           )}
@@ -354,9 +435,28 @@ function ContractRow({
       </td>
       <td className="px-2 py-5 text-center">
         <div className="mx-auto flex w-full max-w-[105px] flex-col items-center gap-1.5">
-          <p className="w-full truncate font-mono text-[9px] font-semibold text-slate-500" title={applicantPhone}>{applicantPhone || "-"}</p>
-          {!phoneHref && (
+          {normalizedPhone ? (
+            <button
+              type="button"
+              onClick={handleShareForm}
+              className="w-full rounded-md border border-yellow-300 bg-yellow-50 px-2 py-2 text-center transition hover:bg-yellow-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-yellow-500"
+              title={text.sendForm}
+              aria-label={`${text.targetPhone} ${text.sendForm}`}
+            >
+              <span className="block text-[11px] font-black text-yellow-800">
+                KakaoTalk
+              </span>
+              <span className="block truncate font-mono text-[9px] font-semibold text-slate-600">
+                {text.targetPhone}
+              </span>
+            </button>
+          ) : (
             <span className="text-xs text-slate-400">{text.noPhone}</span>
+          )}
+          {shareStatus && (
+            <span className="text-[10px] font-bold text-emerald-700" role="status">
+              {shareStatus}
+            </span>
           )}
         </div>
       </td>
@@ -433,6 +533,38 @@ function buildCertificationHref(contract: Contract, adoptionDate: string) {
   }
 
   return `/certification?${params.toString()}`;
+}
+
+let kakaoSdkPromise: Promise<NonNullable<Window["Kakao"]>> | null = null;
+
+function loadKakaoSdk() {
+  if (window.Kakao) {
+    return Promise.resolve(window.Kakao);
+  }
+  if (kakaoSdkPromise) {
+    return kakaoSdkPromise;
+  }
+
+  kakaoSdkPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src =
+      "https://t1.kakaocdn.net/kakao_js_sdk/2.7.4/kakao.min.js";
+    script.async = true;
+    script.onload = () => {
+      if (window.Kakao) {
+        resolve(window.Kakao);
+      } else {
+        reject(new Error("\uCE74\uCE74\uC624 SDK\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4."));
+      }
+    };
+    script.onerror = () => {
+      kakaoSdkPromise = null;
+      reject(new Error("\uCE74\uCE74\uC624 SDK\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4."));
+    };
+    document.head.appendChild(script);
+  });
+
+  return kakaoSdkPromise;
 }
 
 function StatusFilter({ label, count, tone, active = false }: { label: string; count: number; tone: "all" | "completed" | "urgent" | "caution" | "observe" | "normal"; active?: boolean }) {

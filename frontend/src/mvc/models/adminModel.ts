@@ -31,6 +31,7 @@ export type Contract = {
   id: string;
   petName: string;
   adopterName: string;
+  applicantPhone?: string;
   status: string;
   signedAt: string;
   nextCheck: string;
