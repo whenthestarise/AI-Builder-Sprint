@@ -3,51 +3,132 @@ import json
 from openai import OpenAI
 
 from app.config import get_settings
+from app.services.rag import (
+    extract_contract_clause_text,
+    format_clauses_for_prompt,
+    retrieve_relevant_clauses,
+)
 
 
-SYSTEM_PROMPT = """너는 동물보호소의 전문 입양 코디네이터이자 반려견 행동 전문가야.
-제공되는 [동물 정보]와 [입양 신청자 정보]를 분석하여, 아래 3가지 항목을 반드시 JSON 형식으로만 응답해줘.
+SYSTEM_PROMPT = """
+너는 유기견 보호소의 입양 계약 관리 AI다.
 
+제공된 동물 정보, 입양자 정보, RAG 특약 기준을 바탕으로
+적용된 특약의 이유를 한 문장으로 요약한다.
+
+규칙:
+- RAG 기준에 없는 의무, 기간, 증빙, 위험 신호를 만들지 않는다.
+- 특약 문구 자체는 서버가 RAG 원문으로 처리한다.
+- ai_summary에는 새로운 계약 의무를 추가하지 않는다.
+- 반드시 JSON만 반환한다.
+
+반환 형식:
 {
-  "contractClauses": ["계약서에 넣을 맞춤형 특약 1", "계약서에 넣을 맞춤형 특약 2"],
-  "dashboardTips": ["실행 가능한 돌봄 팁 1", "실행 가능한 돌봄 팁 2"],
-  "monitoringCheckItem": {
-    "question": "D+30 사후관리 인증 때 확인할 질문 1개",
-    "riskSignal": "주의가 필요한 위험 신호 1개"
-  }
+  "ai_summary": "적용된 특약의 이유를 한 문장으로 요약"
 }
+"""
 
-contractClauses와 dashboardTips는 각각 정확히 2개여야 한다.
-제공되지 않은 사실을 만들지 말고, 법률적 효력을 단정하지 마라.
-동물의 배변 선호가 실외인 경우, 실내 배변 장소를 권장하지 말고 산책/외출 루틴 중심으로 안내하라.
-마크다운 코드 블록이나 JSON 외의 설명은 절대 추가하지 마라."""
+
+CLAUSE_ORDER = {
+    "HEALTH_CARE": 1,
+    "BEHAVIOR_RETURN": 2,
+    "INITIAL_MONITORING": 3,
+}
 
 
 def _parse_json_response(content: str) -> dict:
-    normalized = content.strip()
-    if normalized.startswith("```"):
-        normalized = normalized.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-    return json.loads(normalized)
+    cleaned_content = content.strip()
+
+    if cleaned_content.startswith("```"):
+        cleaned_content = cleaned_content.split("```", 2)[1]
+
+        if cleaned_content.startswith("json"):
+            cleaned_content = cleaned_content[4:]
+
+    return json.loads(cleaned_content.strip())
+
+
+def _extract_rag_signals(special_notes: str) -> tuple[list[str], list[str]]:
+    behavior_keywords = (
+        "분리불안",
+        "공격성",
+        "지속적인 짖음",
+        "지속적 짖음",
+    )
+
+    health_keywords = (
+        "기저질환",
+        "건강 이상",
+        "질환",
+        "슬개골",
+        "관절",
+        "심장",
+        "식욕 저하",
+        "구토",
+        "혈변",
+        "투약",
+    )
+
+    behavior_tags = [
+        keyword for keyword in behavior_keywords
+        if keyword in special_notes
+    ]
+
+    health_signals = [
+        keyword for keyword in health_keywords
+        if keyword in special_notes
+    ]
+
+    return behavior_tags, health_signals
 
 
 def generate_contract_preview(
     *,
-    animal_name: str,
-    behavior_tags: list[str],
-    housing: str,
-    average_away_hours: float,
-    care_experience: str,
+    pet_name: str,
+    pet_age: str,
+    pet_breed: str,
+    special_notes: str,
+    adopter_name: str,
+    household_type: str,
+    housing_type: str,
+    pet_experience: str,
 ) -> dict:
-    settings = get_settings()
-    behavior_tag_text = ", ".join(behavior_tags) or "특이사항 없음"
-    user_prompt = f"""[동물 정보]
-이름: {animal_name}
-행동 태그: {behavior_tag_text}
+    behavior_tags, health_signals = _extract_rag_signals(special_notes)
 
-[입양 신청자 정보]
-주거: {housing}
-외출: 하루 평균 {average_away_hours:g}시간
-양육 경험: {care_experience}"""
+    retrieved_clauses = retrieve_relevant_clauses(
+        behavior_tags=behavior_tags,
+        health_signals=health_signals,
+    )
+
+    retrieved_clauses.sort(
+        key=lambda clause: CLAUSE_ORDER[clause.code]
+    )
+
+    custom_clauses = [
+        extract_contract_clause_text(clause)
+        for clause in retrieved_clauses
+    ]
+
+    rag_context = format_clauses_for_prompt(retrieved_clauses)
+
+    settings = get_settings()
+
+    user_prompt = f"""
+[동물 정보]
+- 이름: {pet_name}
+- 나이: {pet_age}
+- 품종: {pet_breed}
+- 특이사항: {special_notes}
+
+[입양자 정보]
+- 이름: {adopter_name}
+- 가구 형태: {household_type}
+- 주거 형태: {housing_type}
+- 반려동물 양육 경험: {pet_experience}
+
+[RAG 특약 기준]
+{rag_context}
+"""
 
     client = OpenAI(
         api_key=settings.upstage_api_key,
@@ -57,20 +138,20 @@ def generate_contract_preview(
     response = client.chat.completions.create(
         model=settings.upstage_chat_model,
         messages=[
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT,
-            },
-            {
-                "role": "user",
-                "content": user_prompt,
-            },
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
         ],
-        temperature=0.2,
+        temperature=0,
     )
 
     content = response.choices[0].message.content
-    if not content:
-        raise ValueError("Upstage returned an empty response")
 
-    return _parse_json_response(content)
+    if not content:
+        raise ValueError("Upstage AI가 빈 응답을 반환했습니다.")
+
+    result = _parse_json_response(content)
+
+    return {
+        "ai_summary": result["ai_summary"],
+        "custom_clauses": custom_clauses,
+    }
