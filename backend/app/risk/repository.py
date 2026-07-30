@@ -336,6 +336,7 @@ def contract_from_records(pet_id: str, records: list[dict[str, Any]]) -> Contrac
         id=pet_id,
         petName=latest["pet_name"],
         adopterName=latest["adopter_name"] or "\uC785\uC591\uC790 \uBBF8\uC785\uB825",
+        applicantPhone=phone_from_records(records),
         status=status_for_record(latest),
         signedAt=adoption_date,
         nextCheck=next_check_label(latest),
@@ -588,6 +589,15 @@ def get_primary_applicant_phone(records: dict[str, list[dict[str, Any]]]) -> str
                 return phone
 
     return ""
+
+
+def phone_from_records(records: list[dict[str, Any]]) -> str | None:
+    for record in records:
+        phone = record["text_inputs"].get("phone")
+        if phone:
+            return phone
+
+    return None
 
 
 def get_risk_config() -> RiskConfig:

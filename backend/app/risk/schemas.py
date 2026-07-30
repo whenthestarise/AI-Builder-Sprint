@@ -12,6 +12,7 @@ class Contract(BaseModel):
     id: str
     petName: str
     adopterName: str
+    applicantPhone: str | None = None
     status: str
     signedAt: str
     nextCheck: str

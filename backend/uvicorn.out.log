@@ -1,0 +1,12 @@
+INFO:     192.168.1.2:64365 - "GET /health HTTP/1.1" 200 OK
+INFO:     192.168.1.2:64365 - "GET /api/risk/dashboard HTTP/1.1" 200 OK
+INFO:     192.168.1.2:64367 - "GET /api/risk/dashboard HTTP/1.1" 200 OK
+INFO:     192.168.1.2:63106 - "GET /api/risk/dashboard HTTP/1.1" 200 OK
+INFO:     192.168.1.2:63106 - "GET /api/risk/dashboard HTTP/1.1" 200 OK
+INFO:     192.168.1.2:52276 - "OPTIONS /api/risk/contracts/RISK-PET-URGENT/send-certification-form HTTP/1.1" 200 OK
+INFO:     192.168.1.2:52276 - "POST /api/risk/contracts/RISK-PET-URGENT/send-certification-form HTTP/1.1" 503 Service Unavailable
+ INFO:     192.168.1.2:55109 - "GET /health HTTP/1.1" 200 OK
+INFO:     192.168.1.2:52398 - "GET /api/risk/dashboard HTTP/1.1" 200 OK
+INFO:     192.168.1.2:55374 - "GET /api/risk/dashboard HTTP/1.1" 200 OK
+INFO:     192.168.1.2:55374 - "GET /api/risk/dashboard HTTP/1.1" 200 OK
+INFO:     192.168.1.2:51221 - "GET /api/risk/dashboard HTTP/1.1" 200 OK

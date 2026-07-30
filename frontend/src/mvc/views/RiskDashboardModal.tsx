@@ -54,6 +54,50 @@ type CertificationReviewResult = {
   comment: string;
 };
 
+let kakaoNoticeSdkPromise:
+  | Promise<NonNullable<Window["Kakao"]>>
+  | null = null;
+
+function loadKakaoSdkForNotice() {
+  if (window.Kakao) {
+    return Promise.resolve(window.Kakao);
+  }
+  if (kakaoNoticeSdkPromise) {
+    return kakaoNoticeSdkPromise;
+  }
+
+  kakaoNoticeSdkPromise = new Promise(
+    (resolve, reject) => {
+      const script = document.createElement("script");
+      script.src =
+        "https://t1.kakaocdn.net/kakao_js_sdk/2.8.1/kakao.min.js";
+      script.async = true;
+      script.onload = () => {
+        if (window.Kakao) {
+          resolve(window.Kakao);
+        } else {
+          reject(
+            new Error(
+              "\uCE74\uCE74\uC624 SDK\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.",
+            ),
+          );
+        }
+      };
+      script.onerror = () => {
+        kakaoNoticeSdkPromise = null;
+        reject(
+          new Error(
+            "\uCE74\uCE74\uC624 SDK\uB97C \uBD88\uB7EC\uC624\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.",
+          ),
+        );
+      };
+      document.head.appendChild(script);
+    },
+  );
+
+  return kakaoNoticeSdkPromise;
+}
+
 export function RiskDashboardModal({
   applicantPhone,
   contract,
@@ -104,6 +148,8 @@ export function RiskDashboardModal({
     selectedCertificationId,
     setSelectedCertificationId,
   ] = useState<string | null>(null);
+  const [noticeStatus, setNoticeStatus] =
+    useState("");
 
   const selectedCertification =
     useMemo(
@@ -136,6 +182,73 @@ export function RiskDashboardModal({
   const phoneHref = normalizedPhone
     ? `tel:${normalizedPhone}`
     : undefined;
+
+  const handleUpcomingNotice = async () => {
+    const dueDate =
+      upcomingTimeline.description.match(
+        /\d{4}\.\d{2}\.\d{2}/,
+      )?.[0] ?? "\uC608\uC815\uC77C";
+    const nextRound = Math.min(
+      (contract.certificationRound ?? 0) + 1,
+      6,
+    );
+    const params = new URLSearchParams({
+      petId: contract.id,
+      petName: contract.petName,
+      adopterName: contract.adopterName,
+      adoptionDate: contract.signedAt,
+      round: String(nextRound),
+    });
+    const formUrl = new URL(
+      `/certification?${params.toString()}`,
+      window.location.origin,
+    ).toString();
+
+    setNoticeStatus("\uCE74\uCE74\uC624\uD1A1 \uC5EC\uB294 \uC911...");
+    try {
+      const kakao = await loadKakaoSdkForNotice();
+      const javascriptKey =
+        process.env.NEXT_PUBLIC_KAKAO_JAVASCRIPT_KEY?.trim();
+      if (!javascriptKey) {
+        throw new Error(
+          "NEXT_PUBLIC_KAKAO_JAVASCRIPT_KEY\uB97C \uC785\uB825\uD574 \uC8FC\uC138\uC694.",
+        );
+      }
+      if (!kakao.isInitialized()) {
+        kakao.init(javascriptKey);
+      }
+
+      kakao.Share.sendDefault({
+        objectType: "feed",
+        content: {
+          title: `${contract.petName} \uC548\uBD80 \uC778\uC99D \uC0AC\uC804 \uC548\uB0B4`,
+          description: `${contract.adopterName}\uB2D8, ${dueDate}\uAE4C\uC9C0 ${contract.petName}\uC758 \uC548\uBD80 \uC778\uC99D \uD3FC\uC744 \uC791\uC131\uD574 \uC8FC\uC138\uC694.`,
+          imageUrl:
+            "https://images.unsplash.com/photo-1450778869180-41d0601e046e?auto=format&fit=crop&w=800&q=80",
+          link: {
+            mobileWebUrl: formUrl,
+            webUrl: formUrl,
+          },
+        },
+        buttons: [
+          {
+            title: "\uC548\uBD80 \uC778\uC99D \uD3FC \uC791\uC131\uD558\uAE30",
+            link: {
+              mobileWebUrl: formUrl,
+              webUrl: formUrl,
+            },
+          },
+        ],
+      });
+      setNoticeStatus("");
+    } catch (error) {
+      setNoticeStatus(
+        error instanceof Error
+          ? error.message
+          : "\uCE74\uCE74\uC624\uD1A1 \uACF5\uC720\uCC3D\uC744 \uC5F4\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4.",
+      );
+    }
+  };
 
   const handleStatusSave = ({
     grade,
@@ -375,6 +488,7 @@ export function RiskDashboardModal({
 
                   <button
                     type="button"
+                    onClick={handleUpcomingNotice}
                     className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-500 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-600"
                   >
                     {
@@ -382,6 +496,11 @@ export function RiskDashboardModal({
                     }
                   </button>
                 </div>
+                {noticeStatus && (
+                  <p className="mt-3 text-right text-xs font-semibold text-blue-700" role="status">
+                    {noticeStatus}
+                  </p>
+                )}
               </section>
 
               <div className="mt-7 flex flex-wrap items-center gap-2 border-b border-slate-300 pb-3">
