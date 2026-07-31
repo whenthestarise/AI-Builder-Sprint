@@ -1,7 +1,17 @@
+"use client";
+
+import { useMemo, useState } from "react";
 import Link from "next/link";
 
-import type { AdoptionApplication, Pet } from "@/mvc/models/adminModel";
-import { AdminShell } from "@/mvc/views/AdminShell";
+import type {
+  AdoptionApplication,
+  Pet,
+} from "@/mvc/models/adminModel";
+import {
+  AdminShell,
+  PageContent,
+  PageHeader,
+} from "@/mvc/views/AdminShell";
 
 type DashboardViewProps = {
   stats: {
@@ -14,245 +24,476 @@ type DashboardViewProps = {
   applications: AdoptionApplication[];
 };
 
+type StatTone = "slate" | "blue" | "orange" | "red";
+
+type StatIconType =
+  | "shield"
+  | "clock"
+  | "document"
+  | "alert";
+
 export function DashboardView({
   stats,
   pets,
   applications,
 }: DashboardViewProps) {
+  const [searchKeyword, setSearchKeyword] = useState("");
+
+  const filteredPets = useMemo(() => {
+    const keyword = searchKeyword.trim().toLowerCase();
+
+    if (!keyword) {
+      return pets;
+    }
+
+    return pets.filter((pet) => {
+      const searchableValues = [
+        pet.name,
+        pet.englishName,
+        pet.breed,
+        ...(pet.traits ?? []),
+      ];
+
+      return searchableValues.some((value) =>
+        value?.toLowerCase().includes(keyword),
+      );
+    });
+  }, [pets, searchKeyword]);
+
   return (
     <AdminShell>
-      <div className="w-full space-y-5">
-        <section className="border-b border-slate-200 pb-5">
-          <p className="font-mono  font-extrabold tracking-wide text-blue-600">
-            STEP 1. ADOPTION MATCHING
-          </p>
-          <h1 className="mt-2 text-2xl font-extrabold tracking-tight text-slate-950">
-            보호 동물 목록 및 입양 심사
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            동물 프로필과 접수된 입양 신청자를 검토하고 매칭 및 책임계약을
-            진행하세요.
-          </p>
-        </section>
+      <PageHeader
+        title="보호 동물 현황 및 입양 심사"
+        description="외부 접수된 입양 신청자 매칭 현황을 확인하고 클릭하여 심사 및 계약을 진행하세요."
+      />
 
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <StatCard label="전체 보호 동물" value={stats.totalPets} unit="마리" />
-          <StatCard
-            label="입양 가능"
-            value={stats.waitingPets}
-            unit="마리"
-            tone="blue"
-          />
-          <StatCard
-            label="1차 심사 통과"
-            value={stats.applications}
-            unit="건"
-            tone="orange"
-          />
-          <StatCard
-            label="CLM 확인 대기"
-            value={stats.urgentRisks}
-            unit="건"
-            tone="red"
-            action={{ label: "바로가기", href: "/risk" }}
-          />
-        </section>
-
-        <section className="grid gap-5 lg:grid-cols-3 2xl:gap-6">
-          {pets.map((pet, index) => (
-            <PetCard
-              key={pet.id}
-              pet={pet}
-              recommended={index === 0}
-              application={pet.status === "matching" ? applications[0] : undefined}
+      <PageContent>
+        <div className="space-y-6">
+          {/* 통계 카드 */}
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard
+              label="전체 보호 동물"
+              value={stats.totalPets}
+              unit="마리"
+              tone="slate"
+              icon="shield"
             />
-          ))}
-        </section>
-      </div>
+
+            <StatCard
+              label="입양 대기중"
+              value={stats.waitingPets}
+              unit="마리"
+              tone="blue"
+              icon="clock"
+            />
+
+            <StatCard
+              label="온라인 신청서 접수"
+              value={stats.applications}
+              unit="건"
+              description="매칭 대기 중"
+              tone="orange"
+              icon="document"
+            />
+
+            <StatCard
+              label="위험 알림"
+              value={stats.urgentRisks}
+              unit="건"
+              description="조치 요망"
+              tone="red"
+              icon="alert"
+              href="/risk"
+            />
+          </section>
+
+          {/* 검색 */}
+          <section>
+            <div className="relative w-full max-w-[380px]">
+              <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">
+                <SearchIcon />
+              </span>
+
+              <input
+                type="search"
+                value={searchKeyword}
+                onChange={(event) => setSearchKeyword(event.target.value)}
+                placeholder="이름, 품종 검색하기"
+                aria-label="보호 동물 검색"
+                className={[
+                  "h-11 w-full rounded-lg border border-slate-200 bg-white",
+                  "pl-11 pr-4 text-sm text-slate-900 outline-none",
+                  "placeholder:text-slate-400",
+                  "focus:border-blue-400 focus:ring-2 focus:ring-blue-100",
+                ].join(" ")}
+              />
+            </div>
+          </section>
+
+          {/* 동물 카드 목록 */}
+          <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {filteredPets.map((pet) => {
+              const application = findApplicationByPetId(
+                applications,
+                pet.id,
+              );
+
+              return (
+                <PetCard
+                  key={pet.id}
+                  pet={pet}
+                  application={application}
+                />
+              );
+            })}
+          </section>
+
+          {filteredPets.length === 0 && (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-16 text-center">
+              <p className="text-sm font-semibold text-slate-600">
+                검색 조건과 일치하는 보호 동물이 없습니다.
+              </p>
+            </div>
+          )}
+        </div>
+      </PageContent>
     </AdminShell>
   );
 }
+
+/* ==============================
+ * 통계 카드
+ * ============================== */
 
 function StatCard({
   label,
   value,
   unit,
-  tone = "slate",
-  action,
+  description,
+  tone,
+  icon,
+  href,
 }: {
   label: string;
   value: number;
   unit: string;
-  tone?: "slate" | "blue" | "orange" | "red";
-  action?: { label: string; href: string };
+  description?: string;
+  tone: StatTone;
+  icon: StatIconType;
+  href?: string;
 }) {
-  const color = {
-    slate: "text-slate-950",
-    blue: "text-blue-600",
-    orange: "text-orange-500",
-    red: "text-red-600",
+  const style = {
+    slate: {
+      value: "text-slate-950",
+      iconBox: "bg-slate-100 text-slate-900",
+      border: "border-slate-200",
+      description: "text-slate-500",
+    },
+    blue: {
+      value: "text-blue-600",
+      iconBox: "bg-blue-50 text-blue-600",
+      border: "border-slate-200",
+      description: "text-blue-500",
+    },
+    orange: {
+      value: "text-orange-500",
+      iconBox: "bg-amber-50 text-orange-500",
+      border: "border-slate-200",
+      description: "text-slate-500",
+    },
+    red: {
+      value: "text-red-600",
+      iconBox: "bg-red-50 text-red-600",
+      border: "border-red-500",
+      description: "text-red-600",
+    },
   }[tone];
 
-  return (
-    <div className="rounded-xl border border-slate-200 bg-foreground p-4">
-      <div className="flex items-start justify-between gap-3">
-        <p className={`text-xs font-bold ${color}`}>{label}</p>
-        {action && (
-          <Link
-            href={action.href}
-            className="shrink-0 text-xs font-bold text-red-600 underline underline-offset-2 hover:text-red-700"
+  const content = (
+    <div
+      className={[
+        "flex min-h-[104px] items-center gap-4 rounded-xl border bg-white",
+        "px-5 py-4 transition-shadow",
+        style.border,
+        href ? "hover:shadow-md" : "",
+      ].join(" ")}
+    >
+      <span
+        className={[
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
+          style.iconBox,
+        ].join(" ")}
+      >
+        <StatIcon icon={icon} />
+      </span>
+
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-slate-600">
+          {label}
+        </p>
+
+        <div className="mt-1 flex items-end gap-1">
+          <strong
+            className={[
+              "text-[26px] font-extrabold leading-none",
+              style.value,
+            ].join(" ")}
           >
-            {action.label}
-          </Link>
+            {value}
+          </strong>
+
+          <span className="pb-0.5 text-xs font-medium text-slate-500">
+            {unit}
+          </span>
+        </div>
+
+        {description && (
+          <p
+            className={[
+              "mt-1 text-[11px] font-medium",
+              style.description,
+            ].join(" ")}
+          >
+            {description}
+          </p>
         )}
       </div>
-      <p className={`mt-2 text-3xl font-bold leading-none ${color}`}>
-        {value}
-        <span className="ml-1 text-xs font-normal text-slate-500">{unit}</span>
-      </p>
     </div>
+  );
+
+  if (!href) {
+    return content;
+  }
+
+  return (
+    <Link href={href} aria-label={`${label} 페이지로 이동`}>
+      {content}
+    </Link>
   );
 }
 
+/* ==============================
+ * 보호 동물 카드
+ * ============================== */
+
 function PetCard({
   pet,
-  recommended = false,
   application,
 }: {
   pet: Pet;
-  recommended?: boolean;
   application?: AdoptionApplication;
 }) {
-  const href = pet.status === "adopted" ? "/risk" : "/manage";
+  const href = pet.status === "adopted" ? "/risk" : `/manage/${pet.id}`;
 
-  const statusBadge = {
-    matching: {
-      label: "매칭 대기중",
-      className: "bg-orange-500 text-white",
-    },
-    available: {
-      label: "입양 가능",
-      className: "bg-emerald-600 text-white",
-    },
-    adopted: {
-      label: "입양 완료",
-      className: "bg-slate-700 text-white",
-    },
-  }[pet.status];
-
-  const noteStyle = {
-    matching: "border-orange-300 bg-orange-50 text-orange-700",
-    available: "border-slate-200 bg-slate-100 text-slate-600",
-    adopted: "border-red-300 bg-red-50 text-red-600",
-  }[pet.status];
+  const displayText = getPetDisplayText(pet, application);
 
   return (
-    <Link
-      href={href}
+    <article
       className={[
-        "group relative flex min-h-[340px] flex-col rounded-2xl",
-        "bg-foreground p-3 shadow-sm transition 2xl:p-4",
-        recommended
-          ? "border-2 border-blue-600 ring-2 ring-blue-100"
-          : "border border-slate-200 hover:border-blue-400",
+        "group flex min-h-[370px] flex-col overflow-hidden rounded-xl",
+        "border border-slate-200 bg-white shadow-sm",
+        "transition-all duration-200",
+        "hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md",
       ].join(" ")}
     >
-      {recommended && (
-        <span className="absolute right-3 top-3 z-10 rounded-full bg-blue-600 px-3 py-1 text-[10px] font-bold text-white shadow-sm">
-          추천 표준 계약
-        </span>
-      )}
-
-      {/* 이미지 높이를 170px로 제한 */}
-      <div className="relative h-[170px] shrink-0 overflow-hidden rounded-xl bg-slate-200">
-        <div
-          aria-label={pet.name}
-          role="img"
-          className="h-full w-full bg-cover bg-center transition duration-300 group-hover:scale-105"
-          style={{
-            backgroundImage: `url(${pet.imageUrl})`,
-          }}
-        />
-
-        <div className="absolute bottom-2 left-2 opacity-0 transition-opacity group-hover:opacity-100">
-          <span className="rounded bg-black/75 px-2 py-1 text-[10px] font-semibold text-white">
-            ID: #{pet.id}
-          </span>
+      <Link href={href} className="flex h-full flex-col">
+        {/* Pet 데이터에 저장된 imageUrl 사용 */}
+        <div className="relative h-[210px] shrink-0 overflow-hidden bg-slate-200">
+          <div
+            role="img"
+            aria-label={`${pet.name} 보호 동물 사진`}
+            className={[
+              "h-full w-full bg-cover bg-center",
+              "transition-transform duration-300",
+              "group-hover:scale-[1.03]",
+            ].join(" ")}
+            style={{
+              backgroundImage: `url("${pet.imageUrl}")`,
+            }}
+          />
         </div>
 
-        <div className="absolute bottom-2 right-2">
-          <span
-            className={`rounded px-2 py-1 text-[10px] font-bold ${statusBadge.className}`}
+        <div className="flex flex-1 flex-col px-4 pb-4 pt-4">
+          {/* 이름과 품종 */}
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="min-w-0 truncate text-xl font-extrabold tracking-tight text-slate-950">
+              {pet.name}
+            </h2>
+
+            <span className="shrink-0 rounded-md border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+              {pet.age} · {pet.breed}
+            </span>
+          </div>
+
+          {/* 동물별 상태 정보 */}
+          <div
+            className={[
+              "mt-4 min-h-[42px] rounded-md border px-3 py-2",
+              "text-xs font-medium leading-5",
+              displayText.noticeClassName,
+            ].join(" ")}
           >
-            {statusBadge.label}
-          </span>
+            {displayText.notice}
+          </div>
+
+          {/* 하단 상태 */}
+          <div className="mt-auto flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+            <p className="min-w-0 truncate text-xs text-slate-600">
+              {displayText.footer}
+            </p>
+
+            <span className="shrink-0 text-xs font-bold text-blue-600">
+              {displayText.action}
+              <span aria-hidden="true" className="ml-1">
+                →
+              </span>
+            </span>
+          </div>
         </div>
-      </div>
-
-      {/* 이름 */}
-      <div className="mt-3 flex items-start justify-between gap-2">
-        <h2 className="min-w-0 text-lg font-extrabold leading-tight text-slate-950">
-          {pet.name} ({pet.englishName})
-        </h2>
-
-        <span className="shrink-0 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600">
-          {pet.age} · {pet.breed}
-        </span>
-      </div>
-
-      {/* 상태 설명 */}
-      <div
-        className={`mt-2 rounded-lg border px-3 py-2 text-xs leading-5 ${noteStyle}`}
-      >
-        {pet.status === "available"
-          ? pet.traits.map((trait) => `#${trait}`).join(", ")
-          : pet.note}
-      </div>
-
-      {/* 하단 */}
-      <div className="mt-auto flex items-center justify-between gap-3 border-t border-slate-100 pt-3 text-xs">
-        {pet.status === "matching" && (
-          <>
-            <p className="min-w-0 text-slate-500">
-              1차 심사 통과:{" "}
-              <strong className="text-slate-900">
-                {application?.applicant ?? "검토 대기"}
-              </strong>
-            </p>
-
-            <span className="shrink-0 font-bold text-blue-600">
-              상세 및 심사
-            </span>
-          </>
-        )}
-
-        {pet.status === "available" && (
-          <>
-            <p className="text-slate-500">
-              계약 상태:{" "}
-              <strong className="text-emerald-600">
-                신청 가능
-              </strong>
-            </p>
-
-            <span className="shrink-0 font-semibold text-slate-400">
-              상세 보기
-            </span>
-          </>
-        )}
-
-        {pet.status === "adopted" && (
-          <>
-            <p className="text-slate-500">
-              입양 후 사후관리 진행 중
-            </p>
-
-            <span className="shrink-0 font-bold text-blue-600">
-              CLM 관리로 이동
-            </span>
-          </>
-        )}
-      </div>
-    </Link>
+      </Link>
+    </article>
   );
+}
+
+/* ==============================
+ * 화면 표시 데이터 변환
+ * ============================== */
+
+function getPetDisplayText(
+  pet: Pet,
+  application?: AdoptionApplication,
+) {
+  if (pet.status === "matching") {
+    return {
+      notice:
+        pet.note ||
+        "입양 신청서 검토 및 신청자 심사가 진행 중입니다.",
+      noticeClassName:
+        "border-amber-300 bg-amber-50 text-amber-800",
+      footer: `1차 심사 통과자: ${
+        application?.applicant ?? "검토 대기"
+      }`,
+      action: "상세 및 심사",
+    };
+  }
+
+  if (pet.status === "adopted") {
+    return {
+      notice:
+        pet.note ||
+        "입양 후 사후관리 및 정기 인증이 진행 중입니다.",
+      noticeClassName:
+        "border-red-200 bg-red-50 text-red-600",
+      footer: "입양 후 사후관리 진행 중",
+      action: "CLM 관리",
+    };
+  }
+
+  return {
+    notice:
+      pet.note ||
+      pet.traits?.map((trait) => `#${trait}`).join(", ") ||
+      "현재 입양 신청이 가능한 보호 동물입니다.",
+    noticeClassName:
+      "border-amber-300 bg-amber-50 text-slate-600",
+    footer: "신청 가능",
+    action: "상세 보기",
+  };
+}
+
+/* ==============================
+ * 신청서와 동물 연결
+ * ============================== */
+
+function findApplicationByPetId(
+  applications: AdoptionApplication[],
+  petId: Pet["id"],
+) {
+  return applications.find(
+    (application) => String(application.petId) === String(petId),
+  );
+}
+
+/* ==============================
+ * 아이콘
+ * ============================== */
+
+function SearchIcon() {
+  return (
+    <svg
+      width="17"
+      height="17"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5" />
+    </svg>
+  );
+}
+
+function StatIcon({ icon }: { icon: StatIconType }) {
+  const commonProps = {
+    width: 18,
+    height: 18,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.9,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+
+  switch (icon) {
+    case "shield":
+      return (
+        <svg {...commonProps}>
+          <path d="M12 3 19 6v5c0 4.7-2.8 7.7-7 9.5C7.8 18.7 5 15.7 5 11V6l7-3Z" />
+          <path d="M9.5 11.5h5" />
+          <path d="M12 9v5" />
+        </svg>
+      );
+
+    case "clock":
+      return (
+        <svg {...commonProps}>
+          <circle cx="12" cy="12" r="8" />
+          <path d="M12 7v5l3 2" />
+        </svg>
+      );
+
+    case "document":
+      return (
+        <svg {...commonProps}>
+          <rect x="6" y="4" width="12" height="16" rx="2" />
+          <path d="M9 4.5V3h6v1.5" />
+          <path d="M9 9h6" />
+          <path d="M9 13h6" />
+          <path d="M9 17h4" />
+        </svg>
+      );
+
+    case "alert":
+      return (
+        <svg {...commonProps}>
+          <path d="M12 4v2" />
+          <path d="M5.6 6.6 7 8" />
+          <path d="M18.4 6.6 17 8" />
+          <path d="M4 13h2" />
+          <path d="M18 13h2" />
+          <path d="M8 16h8" />
+          <path d="M9 16v-4a3 3 0 0 1 6 0v4" />
+          <path d="M7 20h10" />
+        </svg>
+      );
+
+    default:
+      return null;
+  }
 }

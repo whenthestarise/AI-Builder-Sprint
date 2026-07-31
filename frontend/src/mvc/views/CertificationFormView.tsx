@@ -471,9 +471,6 @@ export function CertificationFormView({
     [answers, bodySymptoms],
   );
 
-  const highestRiskStyle =
-    riskStyle[highestRisk];
-
   const handleAnswerChange = (
     questionId: string,
     value: string,
@@ -698,8 +695,6 @@ export function CertificationFormView({
                 {meta.title}
               </h2>
             </div>
-
-            <RiskBadge risk={highestRisk} />
           </div>
 
           <dl className="mt-4 space-y-2 text-sm">
@@ -804,36 +799,6 @@ export function CertificationFormView({
               }
             />
           </FormSection>
-
-          {/* 현재 위험도 */}
-          <section
-            className={[
-              "rounded-2xl border p-5",
-              highestRiskStyle.badgeClass,
-            ].join(" ")}
-          >
-            <div className="flex items-center gap-3">
-              <span
-                className={`h-3 w-3 rounded-full ${highestRiskStyle.dotClass}`}
-              />
-
-              <div>
-                <p className="text-xs font-semibold opacity-70">
-                  현재 응답 기준 시스템 등급
-                </p>
-
-                <p className="mt-1 text-lg font-extrabold">
-                  {highestRiskStyle.label}
-                </p>
-              </div>
-            </div>
-
-            <p className="mt-3 text-xs leading-5 opacity-80">
-              최종 등급은 선택한 응답 중 가장
-              높은 위험도를 기준으로
-              산정됩니다.
-            </p>
-          </section>
 
           {errorMessage && (
             <div
@@ -1172,9 +1137,6 @@ function RadioQuestion({
           const selected =
             value === option.value;
 
-          const style =
-            riskStyle[option.risk];
-
           return (
             <label
               key={option.value}
@@ -1201,20 +1163,6 @@ function RadioQuestion({
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-sm font-semibold leading-6 text-slate-800">
                     {option.label}
-                  </span>
-
-                  <span
-                    className={[
-                      "inline-flex items-center gap-1.5 rounded-full border px-2 py-1",
-                      "text-[10px] font-bold",
-                      style.badgeClass,
-                    ].join(" ")}
-                  >
-                    <span
-                      className={`h-2 w-2 rounded-full ${style.dotClass}`}
-                    />
-
-                    {style.label}
                   </span>
                 </div>
 
@@ -1285,9 +1233,6 @@ function BodyConditionQuestion({
           const checked =
             selected.includes(option.value);
 
-          const style =
-            riskStyle[option.risk];
-
           return (
             <label
               key={option.value}
@@ -1310,20 +1255,6 @@ function BodyConditionQuestion({
               <div className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-2">
                 <span className="text-sm font-semibold leading-6 text-slate-800">
                   {option.label}
-                </span>
-
-                <span
-                  className={[
-                    "inline-flex items-center gap-1.5 rounded-full border px-2 py-1",
-                    "text-[10px] font-bold",
-                    style.badgeClass,
-                  ].join(" ")}
-                >
-                  <span
-                    className={`h-2 w-2 rounded-full ${style.dotClass}`}
-                  />
-
-                  {style.label}
                 </span>
               </div>
             </label>

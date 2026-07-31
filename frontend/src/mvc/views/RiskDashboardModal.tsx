@@ -2,11 +2,36 @@
 
 /* eslint-disable @next/next/no-img-element */
 
+declare global {
+  interface Window {
+    Kakao?: {
+      init: (key: string) => void;
+      isInitialized: () => boolean;
+      Share: {
+        sendDefault: (settings: {
+          objectType: "feed";
+          content: {
+            title: string;
+            description: string;
+            imageUrl: string;
+            link: { mobileWebUrl: string; webUrl: string };
+          };
+          buttons: Array<{
+            title: string;
+            link: { mobileWebUrl: string; webUrl: string };
+          }>;
+        }) => void;
+      };
+    };
+  }
+}
+
 import type {
   ChangeEvent,
   ReactNode,
 } from "react";
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -29,13 +54,66 @@ type RiskDashboardModalProps = {
   dashboardData: RiskDashboardData | null;
   upcomingTimeline: RiskUpcomingTimeline | null;
   certificationCards: RiskCertificationCard[];
-  riskConfig: RiskConfig;
+  riskConfig?: RiskConfig;
   onCertificationApprove?: (
     contractId: string,
     certificationId: string,
     approvedStatus: string,
   ) => void;
   onClose: () => void;
+};
+
+const DEFAULT_RISK_CONFIG: RiskConfig = {
+  gradeOptions: [
+    {
+      value: "urgent",
+      label: "긴급 (Red)",
+      shortLabel: "긴급",
+      badgeClass: "border-red-400 bg-red-500 text-white",
+      dotClass: "bg-red-200",
+      textClass: "text-red-600",
+    },
+    {
+      value: "caution",
+      label: "주의 (Orange)",
+      shortLabel: "주의",
+      badgeClass: "border-orange-400 bg-orange-500 text-white",
+      dotClass: "bg-orange-200",
+      textClass: "text-orange-600",
+    },
+    {
+      value: "observe",
+      label: "관찰 (Yellow)",
+      shortLabel: "관찰",
+      badgeClass: "border-yellow-400 bg-yellow-400 text-yellow-950",
+      dotClass: "bg-yellow-200",
+      textClass: "text-yellow-600",
+    },
+    {
+      value: "normal",
+      label: "정상 (Green)",
+      shortLabel: "정상",
+      badgeClass: "border-emerald-400 bg-emerald-500 text-white",
+      dotClass: "bg-emerald-200",
+      textClass: "text-emerald-600",
+    },
+  ],
+  reasonCategories: [
+    "연락 두절",
+    "안부 인증 미제출",
+    "안부 인증 지연",
+    "건강 이상 징후",
+    "주거 환경 문제",
+    "계약 위반 의심",
+    "기타 사유",
+  ],
+  actionOptions: [
+    "우선 전화 상담 완료",
+    "필수 의무 미이행 안내 발송",
+    "제휴 동물병원 건강상담 링크 발송",
+    "다음 안부 주기 집중 모니터링 대상으로 태그 지정",
+  ],
+  fallbackRows: [],
 };
 
 type ManualStatusPayload = {
@@ -104,7 +182,7 @@ export function RiskDashboardModal({
   dashboardData,
   upcomingTimeline,
   certificationCards,
-  riskConfig,
+  riskConfig = DEFAULT_RISK_CONFIG,
   onCertificationApprove,
   onClose,
 }: RiskDashboardModalProps) {
@@ -118,24 +196,31 @@ export function RiskDashboardModal({
     useState(false);
   const [currentGrade, setCurrentGrade] =
     useState<ManualGrade>(
+      (dashboardData?.manualGrade as ManualGrade) ||
       getInitialGradeFromValues(contract, dashboardData),
     );
   const [
     currentHeaderStatus,
     setCurrentHeaderStatus,
   ] = useState(
-    dashboardData?.headerStatus ??
-      "\uC8FC\uC758 (\uBBF8\uC2B9\uC778)",
+    dashboardData?.manualGrade
+      ? dashboardData.manualGrade === "normal"
+        ? "\uC815\uC0C1"
+        : `${dashboardData.manualCategory ?? ""}`
+      : dashboardData?.headerStatus ??
+        "\uC8FC\uC758 (\uBBF8\uC2B9\uC778)",
   );
   const [
     currentStatusDetail,
     setCurrentStatusDetail,
   ] = useState(
-    contract?.nextCheck ??
-      "\uC548\uBD80 \uC778\uC99D \uAC80\uD1A0\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4.",
+    dashboardData?.manualReason ||
+    (contract?.nextCheck ??
+      "\uC548\uBD80 \uC778\uC99D \uAC80\uD1A0\uAC00 \uD544\uC694\uD569\uB2C8\uB2E4."),
   );
   const [currentCategory, setCurrentCategory] =
     useState(
+      dashboardData?.manualCategory ||
       "\uC548\uBD80 \uC778\uC99D \uBBF8\uC81C\uCD9C",
     );
   const [
@@ -144,6 +229,10 @@ export function RiskDashboardModal({
   ] = useState<RiskCertificationCard[]>(
     certificationCards,
   );
+
+  useEffect(() => {
+    setLocalCertificationCards(certificationCards);
+  }, [certificationCards]);
   const [
     selectedCertificationId,
     setSelectedCertificationId,
@@ -269,6 +358,13 @@ export function RiskDashboardModal({
         : `${selectedGrade.shortLabel} (${category})`,
     );
     setIsStatusModalOpen(false);
+
+    void persistManualStatus(
+      contract.id,
+      grade,
+      category,
+      reason,
+    );
   };
 
   const handleCertificationApprove = (
@@ -314,6 +410,8 @@ export function RiskDashboardModal({
       contract.id,
       selectedCertificationId,
       approvedStatus,
+      result.actions,
+      result.comment,
     );
 
     setSelectedCertificationId(null);
@@ -328,16 +426,16 @@ export function RiskDashboardModal({
       onClick={onClose}
     >
       <div
-        className="max-h-[calc(100vh-4rem)] w-full max-w-6xl overflow-y-auto rounded-2xl border border-slate-300 bg-slate-50 shadow-2xl"
+        className="max-h-[calc(100vh-4rem)] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
         onClick={(event) =>
           event.stopPropagation()
         }
       >
-        <header className="flex min-h-16 items-center justify-between gap-4 bg-slate-700 px-6 py-4">
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <header className="flex min-h-[56px] items-center justify-between gap-4 bg-blue-600 px-6 py-3.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
             <h2
               id="risk-dashboard-title"
-              className="truncate text-lg font-extrabold text-white"
+              className="truncate text-base font-bold text-white"
             >
               {contract.petName} (
               {contract.adopterName}) - CLM
@@ -347,13 +445,13 @@ export function RiskDashboardModal({
             <span
               className={[
                 "inline-flex shrink-0 items-center gap-1.5 rounded-full border",
-                "px-3 py-1 text-xs font-bold",
+                "px-2.5 py-0.5 text-[11px] font-bold",
                 currentGradeStyle.badgeClass,
               ].join(" ")}
             >
               <span
                 className={[
-                  "h-2.5 w-2.5 rounded-full",
+                  "h-2 w-2 rounded-full",
                   currentGradeStyle.dotClass,
                 ].join(" ")}
               />
@@ -365,35 +463,24 @@ export function RiskDashboardModal({
             type="button"
             onClick={onClose}
             aria-label="모달 닫기"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xl font-bold text-white transition hover:bg-white/10"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-lg font-bold text-white/90 transition hover:bg-white/15 hover:text-white"
           >
-            x
+            ✕
           </button>
         </header>
 
-        <div className="relative p-6 lg:p-8">
-          <div className="mb-4 flex justify-end">
-            <button
-              type="button"
-              onClick={() =>
-                setIsStatusModalOpen(true)
-              }
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-400 bg-white px-4 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-100"
-            >
-              상태 수동 변경
-            </button>
-          </div>
-
-          <div className="grid gap-7 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="relative bg-slate-50 p-5 sm:p-6">
+          <div className="grid gap-5 lg:grid-cols-[300px_minmax(0,1fr)]">
             <aside>
-              <section className="rounded-xl border border-slate-300 bg-white p-5 shadow-sm">
-                <h3 className="border-b-2 border-slate-200 pb-3 text-sm font-extrabold text-blue-600">
-                  입양계약 체결 정보
+              <section className="rounded-xl border border-slate-200 bg-white p-4">
+                <h3 className="flex items-center gap-1.5 border-b border-slate-200 pb-2.5 text-[13px] font-bold text-blue-600">
+                  <span aria-hidden="true">📄</span>
+                  입양 계약 체결 정보
                 </h3>
 
-                <dl className="mt-4 space-y-4">
+                <dl className="mt-3.5 space-y-3">
                   <ContractInfoRow
-                    label="계약 ID"
+                    label="계약서 ID"
                     value={contract.id}
                   />
                   <ContractInfoRow
@@ -407,7 +494,7 @@ export function RiskDashboardModal({
                     value="총 1년 (6회)"
                   />
                   <ContractInfoRow
-                    label="특이 성향"
+                    label="특약 약정"
                     value={
                       <span className="font-bold text-orange-600">
                         {
@@ -416,70 +503,69 @@ export function RiskDashboardModal({
                       </span>
                     }
                   />
-                  <ContractInfoRow
-                    label="현재 등급"
-                    value={
-                      <span
-                        className={`font-bold ${currentGradeStyle.textClass}`}
-                      >
-                        {
-                          currentGradeStyle.shortLabel
-                        }
-                      </span>
-                    }
-                  />
                 </dl>
 
                 <button
                   type="button"
-                  className="mt-6 flex h-12 w-full items-center justify-center rounded-md bg-slate-700 px-4 text-sm font-bold text-white shadow-sm transition hover:bg-slate-800"
+                  className="mt-4 flex h-10 w-full items-center justify-center rounded-lg bg-blue-600 px-4 text-[13px] font-bold text-white transition hover:bg-blue-700"
                 >
                   계약서 원본 열람하기
                 </button>
               </section>
 
-              <section className="mt-5 px-2">
-                <h3 className="text-xs font-bold text-slate-600">
+              <section className="mt-4 px-1">
+                <h3 className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700">
+                  <span aria-hidden="true">💡</span>
                   관리자 검토 가이드
                 </h3>
-                <p className="mt-2 text-xs leading-6 text-slate-500">
-                  제출된 인증 카드를 클릭하면
-                  상세 검토가 가능합니다. 이상
-                  징후가 있으면 상태 수동 변경을
-                  통해 관리 등급과 사유를 기록합니다.
+                <p className="mt-1.5 text-[11px] leading-5 text-slate-500">
+                  우측의 인증 카드를 클릭하면 상세
+                  내용 검토가 가능합니다. 정상 외
+                  등급은 체크박스 조치 또는 텍스트
+                  입력을 거쳐야 승인됩니다.
                 </p>
 
                 {phoneHref ? (
                   <a
                     href={phoneHref}
-                    className="mt-3 inline-flex text-xs font-semibold text-blue-600 hover:underline"
+                    className="mt-2.5 inline-flex text-[11px] font-semibold text-blue-600 hover:underline"
                   >
                     입양자 연락처{" "}
                     {applicantPhone}
                   </a>
                 ) : (
-                  <p className="mt-3 text-xs text-slate-400">
+                  <p className="mt-2.5 text-[11px] text-slate-400">
                     등록된 연락처가 없습니다.
                   </p>
                 )}
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setIsStatusModalOpen(true)
+                  }
+                  className="mt-3 inline-flex h-8 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-[11px] font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
+                >
+                  상태 수동 변경
+                </button>
               </section>
             </aside>
 
             <main className="min-w-0">
-              <section className="rounded-xl border-2 border-blue-500 bg-white p-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs font-extrabold uppercase tracking-wide text-blue-600">
+              <section className="rounded-xl border border-blue-300 bg-blue-50 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-blue-600">
                       {
                         upcomingTimeline.label
                       }
                     </p>
-                    <h3 className="mt-1 text-base font-extrabold text-slate-950">
+                    <h3 className="mt-1 text-[15px] font-bold text-slate-950">
                       {
                         upcomingTimeline.title
                       }
                     </h3>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-[11px] text-slate-500">
                       {
                         upcomingTimeline.description
                       }
@@ -489,30 +575,32 @@ export function RiskDashboardModal({
                   <button
                     type="button"
                     onClick={handleUpcomingNotice}
-                    className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-blue-500 px-5 text-sm font-bold text-white shadow-sm transition hover:bg-blue-600"
+                    className="inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-4 text-[12px] font-bold text-white transition hover:bg-blue-700"
                   >
+                    <span aria-hidden="true">🔔</span>
                     {
                       upcomingTimeline.buttonLabel
                     }
                   </button>
                 </div>
                 {noticeStatus && (
-                  <p className="mt-3 text-right text-xs font-semibold text-blue-700" role="status">
+                  <p className="mt-2.5 text-right text-[11px] font-semibold text-blue-700" role="status">
                     {noticeStatus}
                   </p>
                 )}
               </section>
 
-              <div className="mt-7 flex flex-wrap items-center gap-2 border-b border-slate-300 pb-3">
-                <h3 className="text-sm font-extrabold text-slate-600">
+              <div className="mt-5 flex flex-wrap items-center gap-1.5">
+                <h3 className="flex items-center gap-1.5 text-[12px] font-bold text-slate-700">
+                  <span aria-hidden="true">📍</span>
                   제출된 안부 인증 카드
                 </h3>
-                <span className="text-xs text-slate-500">
+                <span className="text-[12px] text-slate-500">
                   (클릭하여 승인 검토)
                 </span>
               </div>
 
-              <div className="mt-4 space-y-4">
+              <div className="mt-3 space-y-2.5">
                 {localCertificationCards.map(
                   (card) => (
                     <CertificationCard
@@ -529,8 +617,8 @@ export function RiskDashboardModal({
 
                 {localCertificationCards.length ===
                   0 && (
-                  <div className="rounded-xl border border-dashed border-slate-300 bg-white px-5 py-12 text-center">
-                    <p className="text-sm text-slate-500">
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-white px-5 py-10 text-center">
+                    <p className="text-[13px] text-slate-500">
                       제출된 안부 인증 카드가
                       없습니다.
                     </p>
@@ -538,18 +626,18 @@ export function RiskDashboardModal({
                 )}
               </div>
 
-              <section className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+              <section className="mt-4 rounded-xl border border-slate-200 bg-white p-3.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-xs font-bold text-slate-500">
+                  <h3 className="text-[11px] font-bold text-slate-500">
                     최근 관리자 상태 메모
                   </h3>
                   <span
-                    className={`text-xs font-bold ${currentGradeStyle.textClass}`}
+                    className={`text-[11px] font-bold ${currentGradeStyle.textClass}`}
                   >
                     {currentCategory}
                   </span>
                 </div>
-                <p className="mt-2 text-sm leading-6 text-slate-700">
+                <p className="mt-1.5 text-[12px] leading-5 text-slate-700">
                   {currentStatusDetail}
                 </p>
               </section>
@@ -604,52 +692,66 @@ function CertificationCard({
 }) {
   const style = {
     caution: {
-      container:
-        "border-l-4 border-l-orange-500 border-y-slate-200 border-r-slate-200",
       badge:
-        "border-orange-100 bg-orange-50 text-orange-600",
-      dot: "bg-orange-400",
+        "border-amber-300 bg-amber-50 text-amber-700",
+      divider: "bg-amber-300",
+      dot: "bg-orange-500",
+      gradeLabel: "주의",
     },
     approved: {
-      container:
-        "border-l-4 border-l-emerald-400 border-y-slate-200 border-r-slate-200",
       badge:
-        "border-emerald-100 bg-emerald-50 text-emerald-600",
-      dot: "bg-emerald-400",
+        "border-emerald-300 bg-emerald-50 text-emerald-700",
+      divider: "bg-emerald-300",
+      dot: "bg-emerald-500",
+      gradeLabel: "승인완료",
     },
   }[card.tone];
+
+  const isApproved = card.tone === "approved";
 
   return (
     <button
       type="button"
       onClick={onClick}
       className={[
-        "w-full rounded-lg border bg-white p-5 text-left shadow-sm",
-        "transition hover:border-blue-400 hover:shadow-md",
+        "w-full rounded-xl border border-slate-200 bg-white p-4 text-left",
+        "transition hover:border-blue-400 hover:shadow-sm",
         "focus:outline-none focus:ring-2 focus:ring-blue-500",
-        style.container,
       ].join(" ")}
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h4 className="text-base font-extrabold text-slate-950">
+          <h4 className="text-[14px] font-bold text-slate-950">
             {card.title}
           </h4>
-          <p className="mt-2 text-sm leading-6 text-slate-500">
+          <p className="mt-1.5 text-[12px] leading-5 text-slate-500">
             {card.description}
           </p>
         </div>
+
         <span
           className={[
-            "inline-flex shrink-0 items-center gap-1.5 rounded-md border",
-            "px-3 py-1.5 text-xs font-bold",
+            "inline-flex shrink-0 items-center gap-1.5 rounded-full border",
+            "px-2.5 py-1 text-[11px] font-bold",
             style.badge,
           ].join(" ")}
         >
           <span
-            className={`h-2.5 w-2.5 rounded-full ${style.dot}`}
+            className={`h-2 w-2 shrink-0 rounded-full ${style.dot}`}
           />
-          {card.status}
+
+          {isApproved ? (
+            <span>{card.status}</span>
+          ) : (
+            <>
+              <span>{style.gradeLabel}</span>
+              <span
+                className={`h-3 w-px ${style.divider}`}
+                aria-hidden="true"
+              />
+              <span>{card.status}</span>
+            </>
+          )}
         </span>
       </div>
     </button>
@@ -699,6 +801,38 @@ function CertificationReviewModal({
       (answer) =>
         answer.tone === "normal",
     );
+
+  const isApproved =
+    card.tone === "approved";
+
+  const gradeLabel = isAllNormal
+    ? "정상"
+    : isApproved
+      ? "승인 완료"
+      : "주의";
+
+  // 위험 신호가 잡힌 문항의 Q번호를 추출해 등급 산정 근거로 표시합니다.
+  const flaggedQuestionCodes = answers
+    .filter(
+      (answer) =>
+        answer.tone !== "normal",
+    )
+    .map(
+      (answer) =>
+        answer.question.match(
+          /^Q\d+/,
+        )?.[0],
+    )
+    .filter(
+      (code): code is string =>
+        Boolean(code),
+    );
+
+  // 정상 등급이 아니면 조치 체크 또는 코멘트 입력을 거쳐야 승인할 수 있습니다.
+  const canApprove =
+    isAllNormal ||
+    selectedActions.length > 0 ||
+    comment.trim().length > 0;
 
   const handleImageSelect = (
     event: ChangeEvent<HTMLInputElement>,
@@ -778,65 +912,55 @@ function CertificationReviewModal({
       }}
     >
       <div
-        className="max-h-[calc(100vh-3rem)] w-full max-w-6xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl"
+        className="max-h-[calc(100vh-3rem)] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
         onClick={(event) =>
           event.stopPropagation()
         }
       >
-        <header className="flex items-start justify-between gap-5 border-b border-slate-200 px-7 py-6">
-          <div>
-            <p className="text-sm font-extrabold uppercase tracking-wide text-blue-500">
-              Admin Audit &amp; Approval
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <h2
-                id="certification-review-title"
-                className="text-2xl font-black tracking-tight text-slate-950"
-              >
-                {contract.petName} (
-                {contract.adopterName}) -{" "}
-                {card.title}
-              </h2>
+        <header className="flex min-h-[56px] items-center justify-between gap-4 bg-blue-600 px-6 py-3.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-2.5">
+            <h2
+              id="certification-review-title"
+              className="truncate text-base font-bold text-white"
+            >
+              {contract.petName}(
+              {contract.adopterName}) -{" "}
+              {roundLabel || card.title}{" "}
+              정기 인증 검토
+            </h2>
+
+            <span
+              className={[
+                "inline-flex shrink-0 items-center gap-1.5 rounded-full",
+                "px-2.5 py-0.5 text-[11px] font-bold text-white",
+                isAllNormal || isApproved
+                  ? "bg-emerald-500"
+                  : "bg-orange-500",
+              ].join(" ")}
+            >
               <span
                 className={[
-                  "inline-flex items-center gap-1.5 rounded-full px-4 py-2",
-                  "text-sm font-bold text-white",
-                  isAllNormal ||
-                  card.tone === "approved"
-                    ? "bg-emerald-500"
-                    : "bg-orange-500",
+                  "h-2 w-2 rounded-full",
+                  isAllNormal || isApproved
+                    ? "bg-emerald-200"
+                    : "bg-orange-200",
                 ].join(" ")}
-              >
-                <span
-                  className={[
-                    "h-3 w-3 rounded-full",
-                    isAllNormal ||
-                    card.tone === "approved"
-                      ? "bg-emerald-200"
-                      : "bg-orange-300",
-                  ].join(" ")}
-                />
-                {isAllNormal
-                  ? "정상 등급"
-                  : card.tone ===
-                      "approved"
-                    ? "승인 완료"
-                    : "주의 등급"}
-              </span>
-            </div>
+              />
+              {gradeLabel}
+            </span>
           </div>
 
           <button
             type="button"
             onClick={onClose}
             aria-label="인증 검토 모달 닫기"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-3xl font-bold text-slate-400 transition hover:bg-slate-100 hover:text-slate-900"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-lg font-bold text-white/90 transition hover:bg-white/15 hover:text-white"
           >
-            x
+            ✕
           </button>
         </header>
 
-        <div className="grid gap-8 px-7 py-7 lg:grid-cols-[360px_minmax(0,1fr)]">
+        <div className="grid gap-5 bg-slate-50 px-5 py-5 sm:px-6 lg:grid-cols-[240px_minmax(0,1fr)]">
           <aside>
             <input
               ref={fileInputRef}
@@ -852,7 +976,7 @@ function CertificationReviewModal({
               onClick={() =>
                 fileInputRef.current?.click()
               }
-              className="group relative h-[360px] w-full overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 text-left shadow-sm"
+              className="group relative h-[210px] w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-100 text-left"
               aria-label="인증 사진 선택 및 변경"
             >
               {imageDataUrl ? (
@@ -862,8 +986,8 @@ function CertificationReviewModal({
                   className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
                 />
               ) : (
-                <div className="flex h-full w-full items-center justify-center bg-slate-200 px-8 text-center">
-                  <p className="text-lg font-bold leading-8 text-slate-700">
+                <div className="flex h-full w-full items-center justify-center bg-slate-200 px-5 text-center">
+                  <p className="text-[13px] font-bold leading-6 text-slate-600">
                     첨부된 사진이 없습니다.
                     <br />
                     클릭하여 사진을
@@ -871,39 +995,31 @@ function CertificationReviewModal({
                   </p>
                 </div>
               )}
-              <div className="absolute inset-0 flex items-end justify-center bg-black/0 p-5 transition group-hover:bg-black/25">
-                <span className="translate-y-3 rounded-lg bg-black/75 px-4 py-2 text-sm font-bold text-white opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100">
+              <div className="absolute inset-0 flex items-end justify-center bg-black/0 p-3 transition group-hover:bg-black/25">
+                <span className="translate-y-2 rounded-lg bg-black/75 px-3 py-1.5 text-[11px] font-bold text-white opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100">
                   사진 선택 및 변경
                 </span>
               </div>
             </button>
 
-            <p className="mt-5 text-center text-sm leading-6 text-slate-500">
+            <p className="mt-3 text-center text-[11px] leading-5 text-slate-500">
               제출 일시: {submittedAt}
               <br />
               회차: {roundLabel}
             </p>
-
-            <button
-              type="button"
-              onClick={() =>
-                fileInputRef.current?.click()
-              }
-              className="mt-4 flex h-11 w-full items-center justify-center rounded-xl border border-blue-300 bg-blue-50 text-sm font-bold text-blue-700 transition hover:bg-blue-100"
-            >
-              사진 다시 선택하기
-            </button>
           </aside>
 
-          <main className="min-w-0 space-y-6">
-            <section className="rounded-2xl border border-slate-200 bg-white p-6">
-              <p className="text-sm font-bold text-slate-600">
+          <main className="min-w-0 space-y-3">
+            <section className="rounded-xl border border-slate-200 bg-white p-3.5">
+              <p className="text-[10px] leading-4 text-slate-400">
                 {isAllNormal
-                  ? "모든 문항에서 위험 신호가 확인되지 않았습니다."
-                  : "가장 높은 위험 문항 기준으로 최종 등급이 산정되었습니다."}
+                  ? "* 모든 문항에서 위험 신호가 확인되지 않아 최종 [정상] 등급으로 산정됨"
+                  : flaggedQuestionCodes.length > 0
+                    ? `* 가장 높은 위험도 문항(${flaggedQuestionCodes.join(", ")}) 기준으로 최종 [${gradeLabel}] 등급 산정됨`
+                    : `* 최종 [${gradeLabel}] 등급으로 산정됨`}
               </p>
 
-              <dl className="mt-5 divide-y divide-dashed divide-slate-200">
+              <dl className="mt-2 divide-y divide-slate-100">
                 {answers.map(
                   (answer) => (
                     <CertificationAnswerRow
@@ -925,88 +1041,125 @@ function CertificationReviewModal({
                     />
                   ),
                 )}
+
+                {answers.length === 0 && (
+                  <p className="px-2 py-4 text-center text-[12px] text-slate-500">
+                    제출된 응답 내용이 없습니다.
+                  </p>
+                )}
               </dl>
             </section>
 
             {isAllNormal ? (
               <NormalQuickApprovalGuide />
             ) : (
-              <section className="rounded-2xl border border-slate-200 bg-white p-6">
-                <div className="flex flex-wrap items-center gap-3">
-                  <h3 className="text-lg font-extrabold text-slate-950">
-                    수행할 조치 선택
+              <>
+                <section className="rounded-xl border border-amber-300 bg-amber-50 p-3.5">
+                  <h3 className="text-[12px] font-bold text-orange-700">
+                    [{gradeLabel} 등급] 시스템 추천 조치 가이드
                   </h3>
-                  <span className="rounded-md bg-red-50 px-2 py-1 text-xs font-medium text-slate-600">
-                    다중선택 가능
-                  </span>
-                </div>
+                  <ul className="mt-2 space-y-1">
+                    {flaggedQuestionCodes.length >
+                      0 && (
+                      <li className="text-[11px] leading-5 text-orange-800">
+                        • 위험 신호가 확인된 문항
+                        ({flaggedQuestionCodes.join(", ")})
+                        을 우선 확인하고 보호자
+                        유선 안내를 진행하세요.
+                      </li>
+                    )}
+                    <li className="text-[11px] leading-5 text-orange-800">
+                      • 첨부된 사진으로 증상 여부를
+                      확인하고 필요 시 병원 내원을
+                      권고하세요.
+                    </li>
+                    <li className="text-[11px] leading-5 text-orange-800">
+                      • 아래 조치를 1개 이상
+                      선택하거나 관리자 코멘트를
+                      입력해야 승인할 수 있습니다.
+                    </li>
+                  </ul>
+                </section>
 
-                <div className="mt-5 space-y-3">
-                  {actionOptions.map(
-                    (action) => (
-                      <label
-                        key={action}
-                        className="flex cursor-pointer items-start gap-3"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedActions.includes(
-                            action,
-                          )}
-                          onChange={() =>
-                            toggleAction(
+                <section className="rounded-xl border border-slate-200 bg-white p-3.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-[13px] font-bold text-slate-950">
+                      수행한 조치 선택
+                    </h3>
+                    <span className="rounded-md bg-red-50 px-1.5 py-0.5 text-[10px] font-bold text-red-600">
+                      1개 이상 체크 필수
+                    </span>
+                  </div>
+
+                  <div className="mt-2.5 space-y-2">
+                    {actionOptions.map(
+                      (action) => (
+                        <label
+                          key={action}
+                          className="flex cursor-pointer items-start gap-2"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedActions.includes(
                               action,
-                            )
-                          }
-                          className="mt-0.5 h-5 w-5 rounded border-slate-300 accent-blue-600"
-                        />
-                        <span className="text-sm font-semibold leading-6 text-slate-800">
-                          {action}
-                        </span>
-                      </label>
-                    ),
-                  )}
-                </div>
+                            )}
+                            onChange={() =>
+                              toggleAction(
+                                action,
+                              )
+                            }
+                            className="mt-0.5 h-4 w-4 rounded border-slate-300 accent-blue-600"
+                          />
+                          <span className="text-[12px] font-medium leading-5 text-slate-700">
+                            {action}
+                          </span>
+                        </label>
+                      ),
+                    )}
+                  </div>
 
-                <label
-                  htmlFor="manager-comment"
-                  className="mt-5 block text-sm font-extrabold text-slate-950"
-                >
-                  직접 입력 (관리자 코멘트)
-                </label>
-                <textarea
-                  id="manager-comment"
-                  value={comment}
-                  onChange={(event) =>
-                    setComment(
-                      event.target.value,
-                    )
-                  }
-                  rows={4}
-                  placeholder="특이사항이 있는 경우 자유롭게 적어주세요."
-                  className="mt-3 w-full resize-y rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm leading-6 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                />
-              </section>
+                  <label
+                    htmlFor="manager-comment"
+                    className="mt-3 block text-[12px] font-bold text-slate-950"
+                  >
+                    직접 입력 (관리자 코멘트)
+                  </label>
+                  <textarea
+                    id="manager-comment"
+                    value={comment}
+                    onChange={(event) =>
+                      setComment(
+                        event.target.value,
+                      )
+                    }
+                    rows={3}
+                    placeholder="특이사항이 있는 경우 자유롭게 적어주세요."
+                    className="mt-1.5 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-2 text-[12px] leading-5 text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  />
+                </section>
+              </>
             )}
           </main>
         </div>
 
-        <footer className="sticky bottom-0 flex items-center gap-5 border-t border-slate-200 bg-white px-7 py-5">
+        <footer className="sticky bottom-0 flex items-center gap-3 border-t border-slate-200 bg-white px-5 py-3.5 sm:px-6">
           <button
             type="button"
             onClick={onClose}
-            className="h-14 shrink-0 rounded-xl bg-slate-200 px-8 text-base font-bold text-slate-800 transition hover:bg-slate-300"
+            className="h-10 shrink-0 rounded-lg bg-slate-200 px-6 text-[13px] font-bold text-slate-700 transition hover:bg-slate-300"
           >
-            닫기 (보류)
+            닫기
           </button>
           <button
             type="button"
             onClick={
               handleApprove
             }
+            disabled={!canApprove}
             className={[
-              "flex h-14 flex-1 items-center justify-center rounded-xl",
-              "px-6 text-lg font-extrabold text-white shadow-md transition",
+              "flex h-10 flex-1 items-center justify-center rounded-lg",
+              "px-6 text-[13px] font-bold text-white transition",
+              "disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500",
               isAllNormal
                 ? "bg-emerald-600 hover:bg-emerald-700"
                 : "bg-blue-600 hover:bg-blue-700",
@@ -1014,7 +1167,7 @@ function CertificationReviewModal({
           >
             {isAllNormal
               ? "정상 안부 1-Click 빠른 승인 처리"
-              : "조치 완료 및 최종 승인 처리"}
+              : "조치 완결 및 최종 승인 처리"}
           </button>
         </footer>
       </div>
@@ -1024,11 +1177,11 @@ function CertificationReviewModal({
 
 function NormalQuickApprovalGuide() {
   return (
-    <section className="rounded-2xl border border-emerald-300 bg-emerald-50 px-6 py-5">
-      <h3 className="text-lg font-extrabold text-emerald-800">
+    <section className="rounded-xl border border-emerald-300 bg-emerald-50 p-3.5">
+      <h3 className="text-[12px] font-bold text-emerald-800">
         [정상 등급] 빠른 승인 가이드
       </h3>
-      <p className="mt-3 text-base leading-7 text-emerald-800">
+      <p className="mt-1.5 text-[11px] leading-5 text-emerald-800">
         특이사항이나 위험 신호가 없습니다.
         별도 체크 없이 1-Click 빠른 승인이
         가능합니다.
@@ -1316,16 +1469,16 @@ function CertificationAnswerRow({
   return (
     <div
       className={[
-        "grid gap-3 px-3 py-3",
-        "sm:grid-cols-[minmax(210px,1fr)_minmax(250px,1fr)]",
+        "grid gap-2 rounded-md px-2 py-1.5",
+        "sm:grid-cols-[minmax(150px,1fr)_minmax(160px,auto)]",
         highlighted
-          ? "bg-orange-50"
+          ? "bg-amber-50"
           : "bg-white",
       ].join(" ")}
     >
       <dt
         className={[
-          "text-sm font-semibold leading-6",
+          "text-[11px] font-semibold leading-5",
           highlighted
             ? "text-orange-600"
             : "text-slate-500",
@@ -1335,13 +1488,13 @@ function CertificationAnswerRow({
       </dt>
       <dd
         className={[
-          "flex items-start justify-end gap-2",
-          "text-right text-sm font-bold leading-6",
+          "flex items-start justify-end gap-1.5",
+          "text-right text-[11px] font-bold leading-5",
           toneStyle.text,
         ].join(" ")}
       >
         <span
-          className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${toneStyle.dot}`}
+          className={`mt-1 h-2 w-2 shrink-0 rounded-full ${toneStyle.dot}`}
         />
         <span>{answer}</span>
       </dd>
@@ -1419,6 +1572,8 @@ async function persistCertificationApproval(
   contractId: string,
   certificationId: string,
   approvedStatus: string,
+  managerActions: string[] = [],
+  managerComment: string = "",
 ) {
   try {
     const response = await fetch(
@@ -1432,6 +1587,8 @@ async function persistCertificationApproval(
         },
         body: JSON.stringify({
           approvedStatus,
+          managerActions,
+          managerComment,
         }),
       },
     );
@@ -1451,4 +1608,34 @@ function getBackendBaseUrl() {
     process.env.NEXT_PUBLIC_API_BASE_URL ??
     "http://localhost:8000"
   );
+}
+
+async function persistManualStatus(
+  contractId: string,
+  grade: string,
+  category: string,
+  reason: string,
+) {
+  try {
+    const response = await fetch(
+      `${getBackendBaseUrl()}/api/risk/contracts/${encodeURIComponent(contractId)}/manual-status`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          grade,
+          category,
+          reason,
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      throw new Error("Manual status API request failed.");
+    }
+  } catch (error) {
+    console.error(error);
+  }
 }

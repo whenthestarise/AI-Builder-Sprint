@@ -43,6 +43,11 @@ def initialize_database() -> None:
                 body_symptoms_json TEXT NOT NULL,
                 text_inputs_json TEXT NOT NULL,
                 files_json TEXT NOT NULL,
+                manager_actions_json TEXT NOT NULL DEFAULT '[]',
+                manager_comment TEXT NOT NULL DEFAULT '',
+                manual_grade TEXT NOT NULL DEFAULT '',
+                manual_category TEXT NOT NULL DEFAULT '',
+                manual_reason TEXT NOT NULL DEFAULT '',
                 FOREIGN KEY (pet_id) REFERENCES pets(pet_id)
             );
 
@@ -60,6 +65,19 @@ def initialize_database() -> None:
             );
             """
         )
+
+        # Migration: add manager columns if missing
+        columns = [row[1] for row in connection.execute("PRAGMA table_info(certification_submissions)").fetchall()]
+        if "manager_actions_json" not in columns:
+            connection.execute("ALTER TABLE certification_submissions ADD COLUMN manager_actions_json TEXT NOT NULL DEFAULT '[]'")
+        if "manager_comment" not in columns:
+            connection.execute("ALTER TABLE certification_submissions ADD COLUMN manager_comment TEXT NOT NULL DEFAULT ''")
+        if "manual_grade" not in columns:
+            connection.execute("ALTER TABLE certification_submissions ADD COLUMN manual_grade TEXT NOT NULL DEFAULT ''")
+        if "manual_category" not in columns:
+            connection.execute("ALTER TABLE certification_submissions ADD COLUMN manual_category TEXT NOT NULL DEFAULT ''")
+        if "manual_reason" not in columns:
+            connection.execute("ALTER TABLE certification_submissions ADD COLUMN manual_reason TEXT NOT NULL DEFAULT ''")
 
 
 def dump_json(value: Any) -> str:
