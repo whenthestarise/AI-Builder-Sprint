@@ -18,9 +18,17 @@ export function getDashboardViewModel() {
 }
 
 export function getManageViewModel() {
+  return getManageViewModelByPetId(pets[0].id);
+}
+
+export function getManageViewModelByPetId(petId: string) {
+  const selectedPet = pets.find((pet) => pet.id === petId) ?? pets[0];
+
   return {
-    applications,
-    selectedPet: pets[0],
+    selectedPet,
+    applications: applications.filter(
+      (application) => application.petId === selectedPet.id,
+    ),
   };
 }
 

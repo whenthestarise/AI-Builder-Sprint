@@ -37,6 +37,9 @@ class RiskDashboardData(BaseModel):
     headerDotClass: str
     behaviorTrait: str
     signedDate: str
+    manualGrade: str | None = None
+    manualCategory: str | None = None
+    manualReason: str | None = None
 
 
 class RiskUpcomingTimeline(BaseModel):

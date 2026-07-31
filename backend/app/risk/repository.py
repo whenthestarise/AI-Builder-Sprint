@@ -176,6 +176,35 @@ def review_certification(
     contract_id: str,
     certification_id: str,
     approved_status: str,
+    manager_actions: list[str] | None = None,
+    manager_comment: str = "",
+) -> bool:
+    initialize_database()
+
+    actions_json = dump_json(manager_actions or [])
+
+    with get_connection() as connection:
+        result = connection.execute(
+            """
+            UPDATE certification_submissions
+            SET
+                highest_risk = 'green',
+                final_risk = 'green',
+                approval_status = ?,
+                status_label = ?,
+                manager_actions_json = ?,
+                manager_comment = ?
+            WHERE id = ? AND pet_id = ?
+            """,
+            (
+                approved_status,
+                approved_status,
+                actions_json,
+                manager_comment,
+                certification_id,
+                contract_id,
+            ),
+        )
     manager_actions: list[str],
     manager_comment: str | None,
 ) -> bool:
@@ -216,6 +245,47 @@ def review_certification(
     return False
 
 
+def save_manual_status(
+    contract_id: str,
+    grade: str,
+    category: str,
+    reason: str,
+) -> bool:
+    """Save manual status change to the latest submission for a contract."""
+    initialize_database()
+
+    # Map grade to final_risk
+    grade_to_risk = {
+        "urgent": "red",
+        "caution": "orange",
+        "observe": "yellow",
+        "normal": "green",
+    }
+    final_risk = grade_to_risk.get(grade, "orange")
+
+    with get_connection() as connection:
+        # Update the latest submission for this pet
+        result = connection.execute(
+            """
+            UPDATE certification_submissions
+            SET
+                manual_grade = ?,
+                manual_category = ?,
+                manual_reason = ?,
+                final_risk = ?
+            WHERE pet_id = ?
+              AND submitted_at = (
+                SELECT MAX(submitted_at)
+                FROM certification_submissions
+                WHERE pet_id = ?
+              )
+            """,
+            (grade, category, reason, final_risk, contract_id, contract_id),
+        )
+
+    return result.rowcount > 0
+
+
 def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
     initialize_database()
 
@@ -237,6 +307,9 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 s.files_json,
                 s.manager_actions_json,
                 s.manager_comment,
+                s.manual_grade,
+                s.manual_category,
+                s.manual_reason,
                 s.reviewed_at,
                 p.pet_name,
                 p.adopter_name,
@@ -291,6 +364,11 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 "body_symptoms": load_json(row["body_symptoms_json"]),
                 "text_inputs": load_json(row["text_inputs_json"]),
                 "files": load_json(row["files_json"]),
+                "manager_actions": load_json(row["manager_actions_json"]) if row["manager_actions_json"] else [],
+                "manager_comment": row["manager_comment"] or "",
+                "manual_grade": row["manual_grade"] or "",
+                "manual_category": row["manual_category"] or "",
+                "manual_reason": row["manual_reason"] or "",
                 "manager_actions": load_json(row["manager_actions_json"]),
                 "manager_comment": row["manager_comment"],
                 "reviewed_at": load_datetime(row["reviewed_at"]),
@@ -482,6 +560,9 @@ def get_dashboard_data(
         headerDotClass=dot_class,
         behaviorTrait=behavior_trait_from_record(latest_record),
         signedDate=contract.signedAt,
+        manualGrade=latest_record.get("manual_grade") or None if latest_record else None,
+        manualCategory=latest_record.get("manual_category") or None if latest_record else None,
+        manualReason=latest_record.get("manual_reason") or None if latest_record else None,
     )
 
 
@@ -542,6 +623,8 @@ def certification_card_from_record(
         roundLabel=round_label(record["round"]),
         imageUrl=image_url_from_files(record["files"]),
         answers=answers_from_record(record),
+        managerActions=record.get("manager_actions") or None,
+        managerComment=record.get("manager_comment") or None,
         managerActions=record["manager_actions"],
         managerComment=record["manager_comment"],
         reviewedAt=format_datetime(record["reviewed_at"]),
@@ -575,11 +658,19 @@ def answers_from_record(record: dict[str, Any]) -> list[CertificationAnswer]:
             )
         )
 
+    EXCLUDED_TEXT_KEYS = {"phone", "petType", "specialNote", "breed", "behaviorTrait"}
+
+    TEXT_INPUT_LABELS = {
+        "medicalDelayReason": "의료 일정 연기 사유",
+        "bodyObserveDetail": "몸 상태 관찰 상세",
+        "currentWeight": "현재 체중 (kg)",
+    }
+
     for key, value in record["text_inputs"].items():
-        if value:
+        if value and key not in EXCLUDED_TEXT_KEYS:
             answers.append(
                 CertificationAnswer(
-                    question=key,
+                    question=TEXT_INPUT_LABELS.get(key, key),
                     answer=value,
                     tone="normal",
                 )
@@ -724,4 +815,18 @@ def round_day_label(round_number: int) -> str:
 
 
 def round_label(round_number: int) -> str:
+    return f"{round_number}\uD68C\uCC28 ({round_day_label(round_number)})"
+
+
+def reset_seed_data() -> None:
+    """Re-seed the database with the original 4 contracts and certification histories."""
+    import sys
+    from pathlib import Path as _Path
+
+    seed_script_dir = str(_Path(__file__).resolve().parents[2])
+    if seed_script_dir not in sys.path:
+        sys.path.insert(0, seed_script_dir)
+
+    import seed_risk_data
+    seed_risk_data.seed()
     return f"{round_number}회차({round_day_label(round_number)})"
