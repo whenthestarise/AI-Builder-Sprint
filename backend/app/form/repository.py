@@ -29,12 +29,18 @@ def create_submission(payload: CertificationSubmissionCreate) -> CertificationSu
 
     now = datetime.utcnow()
     pet_id = normalize_pet_id(payload.petId, payload.petName)
+    sent_at = get_authoritative_sent_at(
+        schedule_id=payload.scheduleId,
+        pet_id=pet_id,
+        round_number=payload.round,
+        fallback_sent_at=payload.sentAt,
+    )
     response_risk = calculate_response_risk(
         payload.answers,
         payload.bodySymptoms,
     )
     time_risk, time_status_label = calculate_time_risk(
-        sent_at=payload.sentAt,
+        sent_at=sent_at,
         now=now,
         submitted=True,
     )
@@ -45,6 +51,7 @@ def create_submission(payload: CertificationSubmissionCreate) -> CertificationSu
         {
             **payload.model_dump(),
             "petId": pet_id,
+            "sentAt": sent_at,
             "id": submission_id,
             "highestRisk": final_risk,
             "submittedAt": now,
@@ -80,6 +87,7 @@ def create_submission(payload: CertificationSubmissionCreate) -> CertificationSu
                 id,
                 pet_id,
                 round,
+                schedule_id,
                 sent_at,
                 submitted_at,
                 highest_risk,
@@ -93,12 +101,13 @@ def create_submission(payload: CertificationSubmissionCreate) -> CertificationSu
                 text_inputs_json,
                 files_json
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 submission.id,
                 submission.petId,
                 submission.round,
+                submission.scheduleId,
                 dump_datetime(submission.sentAt),
                 dump_datetime(submission.submittedAt),
                 submission.highestRisk,
@@ -112,6 +121,13 @@ def create_submission(payload: CertificationSubmissionCreate) -> CertificationSu
                 dump_json(submission.textInputs),
                 dump_json([file.model_dump() for file in submission.files]),
             ),
+        )
+
+        mark_schedule_submitted(
+            connection,
+            schedule_id=submission.scheduleId,
+            pet_id=submission.petId,
+            round_number=submission.round,
         )
 
     return submission
@@ -165,8 +181,14 @@ def create_missing_certification(
 
     now = payload.checkedAt or datetime.utcnow()
     pet_id = normalize_pet_id(payload.petId, payload.petName)
+    sent_at = get_authoritative_sent_at(
+        schedule_id=payload.scheduleId,
+        pet_id=pet_id,
+        round_number=payload.round,
+        fallback_sent_at=payload.sentAt,
+    )
     time_risk, status_label = calculate_time_risk(
-        sent_at=payload.sentAt,
+        sent_at=sent_at,
         now=now,
         submitted=False,
     )
@@ -177,10 +199,11 @@ def create_missing_certification(
             **payload.model_dump(),
             "id": missing_id,
             "petId": pet_id,
+            "sentAt": sent_at,
             "checkedAt": now,
             "timeRisk": time_risk,
             "finalRisk": time_risk,
-            "approvalStatus": status_label,
+            "approvalStatus": approval_status_for_submission(),
             "statusLabel": status_label,
         }
     )
@@ -199,6 +222,7 @@ def create_missing_certification(
                 id,
                 pet_id,
                 round,
+                schedule_id,
                 sent_at,
                 checked_at,
                 time_risk,
@@ -206,12 +230,13 @@ def create_missing_certification(
                 approval_status,
                 status_label
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 missing.id,
                 missing.petId,
                 missing.round,
+                missing.scheduleId,
                 dump_datetime(missing.sentAt),
                 dump_datetime(missing.checkedAt),
                 missing.timeRisk,
@@ -223,6 +248,91 @@ def create_missing_certification(
 
     return missing
 
+def get_authoritative_sent_at(
+    *,
+    schedule_id: str | None,
+    pet_id: str,
+    round_number: int,
+    fallback_sent_at: datetime | None,
+) -> datetime | None:
+    if not schedule_id:
+        return fallback_sent_at
+
+    with get_connection() as connection:
+        schedule = connection.execute(
+            """
+            SELECT
+                schedules.round,
+                schedules.sent_at,
+                contracts.pet_id
+            FROM monitoring_schedules AS schedules
+            JOIN contracts
+                ON contracts.contract_id = schedules.contract_id
+            WHERE schedules.schedule_id = ?
+            """,
+            (schedule_id,),
+        ).fetchone()
+
+    if not schedule:
+        raise ValueError("인증 일정을 찾을 수 없습니다.")
+
+    if (
+        schedule["pet_id"] != pet_id
+        or schedule["round"] != round_number
+    ):
+        raise ValueError("인증 일정과 동물 또는 회차가 일치하지 않습니다.")
+
+    if not schedule["sent_at"]:
+        raise ValueError("인증 요청이 아직 발송되지 않은 일정입니다.")
+
+    return load_datetime(schedule["sent_at"])
+
+def mark_schedule_submitted(
+    connection,
+    *,
+    schedule_id: str | None,
+    pet_id: str,
+    round_number: int,
+) -> None:
+    if not schedule_id:
+        return
+
+    schedule = connection.execute(
+        """
+        SELECT
+            schedules.round,
+            schedules.status,
+            contracts.pet_id
+        FROM monitoring_schedules AS schedules
+        JOIN contracts
+            ON contracts.contract_id = schedules.contract_id
+        WHERE schedules.schedule_id = ?
+        """,
+        (schedule_id,),
+    ).fetchone()
+
+    if not schedule:
+        raise ValueError("인증 일정을 찾을 수 없습니다.")
+
+    if (
+        schedule["pet_id"] != pet_id
+        or schedule["round"] != round_number
+    ):
+        raise ValueError("인증 일정과 동물 또는 회차가 일치하지 않습니다.")
+
+    if schedule["status"] != "SENT":
+        raise ValueError(
+            "발송 완료(SENT) 상태의 일정만 제출 처리할 수 있습니다."
+        )
+
+    connection.execute(
+        """
+        UPDATE monitoring_schedules
+        SET status = 'SUBMITTED'
+        WHERE schedule_id = ?
+        """,
+        (schedule_id,),
+    )
 
 def upsert_pet(
     connection,
@@ -274,6 +384,7 @@ def submission_from_row(row) -> CertificationSubmission:
         {
             "id": row["id"],
             "petId": row["pet_id"],
+            "scheduleId": row["schedule_id"],
             "round": row["round"],
             "petName": row["pet_name"],
             "adopterName": row["adopter_name"],

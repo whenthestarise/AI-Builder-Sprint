@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from app.form.database import (
+    dump_datetime,
     dump_json,
     get_connection,
     initialize_database,
@@ -170,7 +171,8 @@ def get_modal_view_model(contract_id: str) -> RiskDashboardModalViewModel:
     return build_modal_view_model(contract, records.get(contract.id, []))
 
 
-def approve_certification(
+def review_certification(
+    *,
     contract_id: str,
     certification_id: str,
     approved_status: str,
@@ -203,8 +205,44 @@ def approve_certification(
                 contract_id,
             ),
         )
+    manager_actions: list[str],
+    manager_comment: str | None,
+) -> bool:
+    initialize_database()
 
-    return result.rowcount > 0
+    reviewed_at = datetime.utcnow()
+
+    values = (
+        approved_status,
+        dump_json(manager_actions),
+        manager_comment,
+        dump_datetime(reviewed_at),
+        certification_id,
+        contract_id,
+    )
+
+    with get_connection() as connection:
+        for table_name in (
+            "certification_submissions",
+            "missing_certifications",
+        ):
+            result = connection.execute(
+                f"""
+                UPDATE {table_name}
+                SET
+                    approval_status = ?,
+                    manager_actions_json = ?,
+                    manager_comment = ?,
+                    reviewed_at = ?
+                WHERE id = ? AND pet_id = ?
+                """,
+                values,
+            )
+
+            if result.rowcount > 0:
+                return True
+
+    return False
 
 
 def save_manual_status(
@@ -272,6 +310,7 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 s.manual_grade,
                 s.manual_category,
                 s.manual_reason,
+                s.reviewed_at,
                 p.pet_name,
                 p.adopter_name,
                 p.adoption_date
@@ -291,6 +330,9 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 m.final_risk,
                 m.approval_status,
                 m.status_label,
+                m.manager_actions_json,
+                m.manager_comment,
+                m.reviewed_at,
                 p.pet_name,
                 p.adopter_name,
                 p.adoption_date
@@ -327,6 +369,9 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 "manual_grade": row["manual_grade"] or "",
                 "manual_category": row["manual_category"] or "",
                 "manual_reason": row["manual_reason"] or "",
+                "manager_actions": load_json(row["manager_actions_json"]),
+                "manager_comment": row["manager_comment"],
+                "reviewed_at": load_datetime(row["reviewed_at"]),
                 "pet_name": row["pet_name"],
                 "adopter_name": row["adopter_name"],
                 "adoption_date": row["adoption_date"],
@@ -352,6 +397,9 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 "body_symptoms": [],
                 "text_inputs": {},
                 "files": [],
+                "manager_actions": load_json(row["manager_actions_json"]),
+                "manager_comment": row["manager_comment"],
+                "reviewed_at": load_datetime(row["reviewed_at"]),
                 "pet_name": row["pet_name"],
                 "adopter_name": row["adopter_name"],
                 "adoption_date": row["adoption_date"],
@@ -522,39 +570,53 @@ def get_upcoming_timeline(
     contract: Contract,
     latest_record: dict[str, Any] | None,
 ) -> RiskUpcomingTimeline:
-    base_date = latest_record["event_at"] if latest_record else None
-    next_date = (base_date + timedelta(days=30)) if base_date else None
+    current_round = latest_record["round"] if latest_record else 0
+    next_round = current_round + 1
+
+    if next_round not in ROUND_DAYS:
+        return RiskUpcomingTimeline(
+            label="Upcoming Timeline",
+            title="정기 안부 인증 완료",
+            description="입양 후 1년 동안의 정기 안부 인증이 완료되었습니다.",
+            buttonLabel="완료",
+        )
+
+    adoption_date = datetime.fromisoformat(contract.adoptionDate)
+    next_date = adoption_date + timedelta(days=ROUND_DAYS[next_round])
 
     return RiskUpcomingTimeline(
         label="Upcoming Timeline",
-        title="\uB2E4\uC74C \uC608\uC815: \uC815\uAE30 \uC548\uBD80 \uC778\uC99D",
+        title=f"다음 예정: {round_day_label(next_round)} 정기 안부 인증",
         description=(
-            f"\uC608\uC815 \uC77C\uC790: {format_date(next_date)} 夷?\uC790\uB3D9 \uB9AC\uB9C8\uC778\uB4DC \uB300\uAE30\uC911"
-            if next_date
-            else "\uB2E4\uC74C \uC548\uBD80 \uC778\uC99D \uC77C\uC815\uC774 \uB300\uAE30\uC911\uC785\uB2C8\uB2E4."
+            f"예정 일자: {format_date(next_date)} · 자동 리마인드 대기중"
         ),
-        buttonLabel="\uC0AC\uC804 \uC548\uB0B4 \uBC1C\uC1A1",
+        buttonLabel="사전 안내 발송",
     )
 
-def certification_card_from_record(record: dict[str, Any]) -> RiskCertificationCard:
+def certification_card_from_record(
+    record: dict[str, Any],
+) -> RiskCertificationCard:
     if record["kind"] == "missing":
         return RiskCertificationCard(
             id=record["id"],
             contractId=record["pet_id"],
             tone="caution",
-            title=f"{round_day_label(record['round'])} \uC548\uBD80 \uC778\uC99D \uBBF8\uC81C\uCD9C",
+            title=f"{round_day_label(record['round'])} 안부 인증 미제출",
             description=record["status_label"],
             status=record["approval_status"],
             submittedAt=format_datetime(record["event_at"]),
             roundLabel=round_label(record["round"]),
             answers=[],
+            managerActions=record["manager_actions"],
+            managerComment=record["manager_comment"],
+            reviewedAt=format_datetime(record["reviewed_at"]),
         )
 
     return RiskCertificationCard(
         id=record["id"],
         contractId=record["pet_id"],
         tone="approved" if record["final_risk"] == "green" else "caution",
-        title=f"{round_day_label(record['round'])} \uC548\uBD80 \uC778\uC99D \uC81C\uCD9C \uAC74",
+        title=f"{round_day_label(record['round'])} 안부 인증 제출 건",
         description=summary_from_record(record),
         status=record["approval_status"],
         submittedAt=format_datetime(record["event_at"]),
@@ -563,6 +625,9 @@ def certification_card_from_record(record: dict[str, Any]) -> RiskCertificationC
         answers=answers_from_record(record),
         managerActions=record.get("manager_actions") or None,
         managerComment=record.get("manager_comment") or None,
+        managerActions=record["manager_actions"],
+        managerComment=record["manager_comment"],
+        reviewedAt=format_datetime(record["reviewed_at"]),
     )
 
 def answers_from_record(record: dict[str, Any]) -> list[CertificationAnswer]:
@@ -764,3 +829,4 @@ def reset_seed_data() -> None:
 
     import seed_risk_data
     seed_risk_data.seed()
+    return f"{round_number}회차({round_day_label(round_number)})"
