@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 from app.risk.repository import (
     get_modal_view_model,
@@ -57,12 +58,6 @@ def approve_contract_certification(
     certification_id: str,
     payload: CertificationReviewRequest,
 ) -> dict[str, bool]:
-    approved = approve_certification(
-        contract_id,
-        certification_id,
-        payload.approvedStatus,
-        payload.managerActions,
-        payload.managerComment,
     reviewed = review_certification(
         contract_id=contract_id,
         certification_id=certification_id,
@@ -70,6 +65,11 @@ def approve_contract_certification(
         manager_actions=payload.managerActions,
         manager_comment=payload.managerComment,
     )
+    if not reviewed:
+        raise HTTPException(
+            status_code=404,
+            detail="Certification not found.",
+        )
 
     return {"ok": True}
 
@@ -96,11 +96,4 @@ def update_manual_status(
 @router.post("/reset-seed")
 def reset_seed() -> dict[str, bool]:
     reset_seed_data()
-    return {"ok": True}
-    if not reviewed:
-        raise HTTPException(
-            status_code=404,
-            detail="Certification not found.",
-        )
-
     return {"ok": True}

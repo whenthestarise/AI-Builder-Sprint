@@ -33,14 +33,14 @@ const navigationItems: NavigationItem[] = [
     label: "대시보드 홈",
     description: "보호 동물 현황 & 입양 매칭",
     icon: "dashboard",
-    activePaths: ["/main"],
+    activePaths: ["/main", "/manage", "/contracts", "/modusign"],
   },
   {
-    href: "/manage",
+    href: "/risk",
     label: "입양 관리",
     description: "안부 검토 & 승인",
     icon: "adoption",
-    activePaths: ["/manage", "/contracts", "/modusign", "/risk"],
+    activePaths: ["/risk"],
   },
   {
     href: "/reports",

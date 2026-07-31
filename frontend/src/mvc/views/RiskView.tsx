@@ -296,11 +296,6 @@ function RiskTableRow({
   const certificationDisplay =
     getCertificationDisplay(item);
 
-  const phoneHref = `tel:${item.contact.replace(
-    /[^\d+]/g,
-    "",
-  )}`;
-
   return (
     <tr className="border-b border-slate-200 last:border-b-0 hover:bg-slate-50/70">
       <TableCell>
@@ -367,18 +362,16 @@ function RiskTableRow({
       </TableCell>
 
       <TableCell>
-        <a
-          href={phoneHref}
+        <span
           className={[
             "inline-flex h-8 items-center justify-center gap-1.5",
             "whitespace-nowrap rounded-md border border-slate-200",
             "bg-white px-3 text-[11px] font-medium text-slate-600",
-            "transition-colors hover:border-blue-300 hover:text-blue-600",
           ].join(" ")}
         >
           <PhoneIcon />
           {item.contact}
-        </a>
+        </span>
       </TableCell>
     </tr>
   );

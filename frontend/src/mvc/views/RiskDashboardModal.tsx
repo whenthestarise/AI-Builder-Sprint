@@ -266,12 +266,6 @@ export function RiskDashboardModal({
     currentGrade,
     gradeOptions,
   );
-  const normalizedPhone =
-    applicantPhone.replace(/[^\d+]/g, "");
-  const phoneHref = normalizedPhone
-    ? `tel:${normalizedPhone}`
-    : undefined;
-
   const handleUpcomingNotice = async () => {
     const dueDate =
       upcomingTimeline.description.match(
@@ -525,14 +519,11 @@ export function RiskDashboardModal({
                   입력을 거쳐야 승인됩니다.
                 </p>
 
-                {phoneHref ? (
-                  <a
-                    href={phoneHref}
-                    className="mt-2.5 inline-flex text-[11px] font-semibold text-blue-600 hover:underline"
-                  >
+                {applicantPhone ? (
+                  <span className="mt-2.5 inline-flex text-[11px] font-semibold text-blue-600">
                     입양자 연락처{" "}
                     {applicantPhone}
-                  </a>
+                  </span>
                 ) : (
                   <p className="mt-2.5 text-[11px] text-slate-400">
                     등록된 연락처가 없습니다.

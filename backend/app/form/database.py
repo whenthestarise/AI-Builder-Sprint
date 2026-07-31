@@ -67,7 +67,6 @@ def initialize_database() -> None:
                 manual_grade TEXT NOT NULL DEFAULT '',
                 manual_category TEXT NOT NULL DEFAULT '',
                 manual_reason TEXT NOT NULL DEFAULT '',
-                manager_comment TEXT,
                 reviewed_at TEXT,
                 FOREIGN KEY (pet_id) REFERENCES pets(pet_id)
             );

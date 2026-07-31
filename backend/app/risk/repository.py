@@ -182,6 +182,7 @@ def review_certification(
     initialize_database()
 
     actions_json = dump_json(manager_actions or [])
+    reviewed_at = dump_datetime(datetime.utcnow())
 
     with get_connection() as connection:
         result = connection.execute(
@@ -193,7 +194,8 @@ def review_certification(
                 approval_status = ?,
                 status_label = ?,
                 manager_actions_json = ?,
-                manager_comment = ?
+                manager_comment = ?,
+                reviewed_at = ?
             WHERE id = ? AND pet_id = ?
             """,
             (
@@ -201,46 +203,38 @@ def review_certification(
                 approved_status,
                 actions_json,
                 manager_comment,
+                reviewed_at,
                 certification_id,
                 contract_id,
             ),
         )
-    manager_actions: list[str],
-    manager_comment: str | None,
-) -> bool:
-    initialize_database()
+        if result.rowcount > 0:
+            return True
 
-    reviewed_at = datetime.utcnow()
-
-    values = (
-        approved_status,
-        dump_json(manager_actions),
-        manager_comment,
-        dump_datetime(reviewed_at),
-        certification_id,
-        contract_id,
-    )
-
-    with get_connection() as connection:
-        for table_name in (
-            "certification_submissions",
-            "missing_certifications",
-        ):
-            result = connection.execute(
-                f"""
-                UPDATE {table_name}
-                SET
-                    approval_status = ?,
-                    manager_actions_json = ?,
-                    manager_comment = ?,
-                    reviewed_at = ?
-                WHERE id = ? AND pet_id = ?
-                """,
-                values,
-            )
-
-            if result.rowcount > 0:
-                return True
+        result = connection.execute(
+            """
+            UPDATE missing_certifications
+            SET
+                final_risk = 'green',
+                approval_status = ?,
+                status_label = ?,
+                manager_actions_json = ?,
+                manager_comment = ?,
+                reviewed_at = ?
+            WHERE id = ? AND pet_id = ?
+            """,
+            (
+                approved_status,
+                approved_status,
+                actions_json,
+                manager_comment,
+                reviewed_at,
+                certification_id,
+                contract_id,
+            ),
+        )
+        if result.rowcount > 0:
+            return True
 
     return False
 
@@ -623,8 +617,6 @@ def certification_card_from_record(
         roundLabel=round_label(record["round"]),
         imageUrl=image_url_from_files(record["files"]),
         answers=answers_from_record(record),
-        managerActions=record.get("manager_actions") or None,
-        managerComment=record.get("manager_comment") or None,
         managerActions=record["manager_actions"],
         managerComment=record["manager_comment"],
         reviewedAt=format_datetime(record["reviewed_at"]),
