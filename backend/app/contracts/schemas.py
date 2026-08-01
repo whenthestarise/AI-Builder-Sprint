@@ -12,6 +12,7 @@ class MonitoringSchedule(BaseModel):
 
 
 class ContractSignCompleteRequest(BaseModel):
+    contractId: str = Field(min_length=1, max_length=80)
     petId: str = Field(min_length=1, max_length=80)
     petName: str = Field(min_length=1, max_length=50)
     adopterName: str = Field(min_length=1, max_length=50)
