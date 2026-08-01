@@ -8,6 +8,8 @@ type CertificationPageProps = {
     petName?: string;
     adopterName?: string;
     adoptionDate?: string;
+    scheduleId?: string;
+    sentAt?: string;
   }>;
 };
 
@@ -23,6 +25,8 @@ export default async function CertificationPage({
       petName={params?.petName ?? "바오"}
       adopterName={params?.adopterName ?? "김민수"}
       adoptionDate={params?.adoptionDate}
+      scheduleId={params?.scheduleId}
+      sentAt={params?.sentAt}
     />
   );
 }

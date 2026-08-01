@@ -281,11 +281,9 @@ export function RiskDashboardModal({
       adopterName: contract.adopterName,
       adoptionDate: contract.signedAt,
       round: String(nextRound),
+      sentAt: new Date().toISOString(),
     });
-    const formUrl = new URL(
-      `/certification?${params.toString()}`,
-      window.location.origin,
-    ).toString();
+    const formUrl = buildCertificationFormUrl(params);
 
     setNoticeStatus("\uCE74\uCE74\uC624\uD1A1 \uC5EC\uB294 \uC911...");
     try {
@@ -1599,6 +1597,18 @@ function getBackendBaseUrl() {
     process.env.NEXT_PUBLIC_API_BASE_URL ??
     "http://localhost:8000"
   );
+}
+
+function buildCertificationFormUrl(params: URLSearchParams) {
+  const configuredBaseUrl =
+    process.env.NEXT_PUBLIC_CERTIFICATION_FORM_BASE_URL?.trim() ||
+    process.env.NEXT_PUBLIC_APP_BASE_URL?.trim() ||
+    window.location.origin;
+
+  return new URL(
+    `/certification?${params.toString()}`,
+    configuredBaseUrl,
+  ).toString();
 }
 
 async function persistManualStatus(
