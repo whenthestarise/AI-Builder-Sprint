@@ -29,9 +29,8 @@ def create_signed_contract(
 ) -> ContractSignComplete:
     initialize_database()
 
-    contract_id = f"CONTRACT-{uuid4().hex[:12].upper()}"
+    contract_id = payload.contractId
     created_at = datetime.utcnow()
-    schedules: list[MonitoringSchedule] = []
 
     with get_connection() as connection:
         connection.execute(
@@ -69,6 +68,7 @@ def create_signed_contract(
                 created_at
             )
             VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(contract_id) DO NOTHING
             """,
             (
                 contract_id,
@@ -95,6 +95,7 @@ def create_signed_contract(
                     sent_at
                 )
                 VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(contract_id, round) DO NOTHING
                 """,
                 (
                     schedule_id,
@@ -105,16 +106,7 @@ def create_signed_contract(
                     None,
                 ),
             )
-
-            schedules.append(
-                MonitoringSchedule(
-                    scheduleId=schedule_id,
-                    round=round_number,
-                    scheduledAt=scheduled_at,
-                    status="PENDING",
-                    sentAt=None,
-                )
-            )
+    schedules = list_monitoring_schedules(contract_id)
 
     return ContractSignComplete(
         contractId=contract_id,

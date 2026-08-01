@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 from app.form.database import (
@@ -177,67 +177,56 @@ def review_certification(
     certification_id: str,
     approved_status: str,
     manager_actions: list[str] | None = None,
-    manager_comment: str = "",
+    manager_comment: str | None = None,
 ) -> bool:
     initialize_database()
 
-    actions_json = dump_json(manager_actions or [])
-    reviewed_at = dump_datetime(datetime.utcnow())
+    reviewed_at = datetime.utcnow()
 
     with get_connection() as connection:
-        result = connection.execute(
+        contract = connection.execute(
             """
-            UPDATE certification_submissions
-            SET
-                highest_risk = 'green',
-                final_risk = 'green',
-                approval_status = ?,
-                status_label = ?,
-                manager_actions_json = ?,
-                manager_comment = ?,
-                reviewed_at = ?
-            WHERE id = ? AND pet_id = ?
+            SELECT pet_id
+            FROM contracts
+            WHERE contract_id = ?
             """,
-            (
-                approved_status,
-                approved_status,
-                actions_json,
-                manager_comment,
-                reviewed_at,
-                certification_id,
-                contract_id,
-            ),
+            (contract_id,),
+        ).fetchone()
+
+        pet_id = contract["pet_id"] if contract else contract_id
+
+        values = (
+            approved_status,
+            dump_json(manager_actions or []),
+            manager_comment or "",
+            dump_datetime(reviewed_at),
+            certification_id,
+            pet_id,
         )
-        if result.rowcount > 0:
-            return True
 
-        result = connection.execute(
-            """
-            UPDATE missing_certifications
-            SET
-                final_risk = 'green',
-                approval_status = ?,
-                status_label = ?,
-                manager_actions_json = ?,
-                manager_comment = ?,
-                reviewed_at = ?
-            WHERE id = ? AND pet_id = ?
-            """,
-            (
-                approved_status,
-                approved_status,
-                actions_json,
-                manager_comment,
-                reviewed_at,
-                certification_id,
-                contract_id,
-            ),
-        )
-        if result.rowcount > 0:
-            return True
+        updated = False
 
-    return False
+        for table_name in (
+            "certification_submissions",
+            "missing_certifications",
+        ):
+            result = connection.execute(
+                f"""
+                UPDATE {table_name}
+                SET
+                    approval_status = ?,
+                    manager_actions_json = ?,
+                    manager_comment = ?,
+                    reviewed_at = ?
+                WHERE id = ? AND pet_id = ?
+                """,
+                values,
+            )
 
+            if result.rowcount > 0:
+                updated = True
+
+    return updated 
 
 def save_manual_status(
     contract_id: str,
@@ -245,10 +234,8 @@ def save_manual_status(
     category: str,
     reason: str,
 ) -> bool:
-    """Save manual status change to the latest submission for a contract."""
     initialize_database()
 
-    # Map grade to final_risk
     grade_to_risk = {
         "urgent": "red",
         "caution": "orange",
@@ -258,7 +245,20 @@ def save_manual_status(
     final_risk = grade_to_risk.get(grade, "orange")
 
     with get_connection() as connection:
-        # Update the latest submission for this pet
+        contract = connection.execute(
+            """
+            SELECT pet_id
+            FROM contracts
+            WHERE contract_id = ?
+            """,
+            (contract_id,),
+        ).fetchone()
+
+        if not contract:
+            return False
+
+        pet_id = contract["pet_id"]
+
         result = connection.execute(
             """
             UPDATE certification_submissions
@@ -269,16 +269,22 @@ def save_manual_status(
                 final_risk = ?
             WHERE pet_id = ?
               AND submitted_at = (
-                SELECT MAX(submitted_at)
-                FROM certification_submissions
-                WHERE pet_id = ?
+                  SELECT MAX(submitted_at)
+                  FROM certification_submissions
+                  WHERE pet_id = ?
               )
             """,
-            (grade, category, reason, final_risk, contract_id, contract_id),
+            (
+                grade,
+                category,
+                reason,
+                final_risk,
+                pet_id,
+                pet_id,
+            ),
         )
 
     return result.rowcount > 0
-
 
 def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
     initialize_database()
@@ -289,6 +295,8 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
             SELECT
                 s.id,
                 s.pet_id,
+                s.schedule_id,
+                COALESCE(ms.contract_id, s.pet_id) AS contract_id,
                 s.round,
                 s.sent_at,
                 s.submitted_at,
@@ -310,6 +318,8 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 p.adoption_date
             FROM certification_submissions s
             JOIN pets p ON p.pet_id = s.pet_id
+            LEFT JOIN monitoring_schedules ms
+                ON ms.schedule_id = s.schedule_id
             ORDER BY s.submitted_at DESC
             """
         ).fetchall()
@@ -318,6 +328,8 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
             SELECT
                 m.id,
                 m.pet_id,
+                m.schedule_id,
+                COALESCE(ms.contract_id, m.pet_id) AS contract_id,
                 m.round,
                 m.sent_at,
                 m.checked_at,
@@ -332,22 +344,25 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 p.adoption_date
             FROM missing_certifications m
             JOIN pets p ON p.pet_id = m.pet_id
+            LEFT JOIN monitoring_schedules ms
+                ON ms.schedule_id = m.schedule_id
             ORDER BY m.checked_at DESC
             """
         ).fetchall()
 
     records: dict[str, list[dict[str, Any]]] = defaultdict(list)
     submitted_rounds = {
-        (row["pet_id"], row["round"])
+        (row["contract_id"], row["round"])
         for row in submissions
     }
 
     for row in submissions:
-        records[row["pet_id"]].append(
+        records[row["contract_id"]].append(
             {
                 "kind": "submitted",
                 "id": row["id"],
                 "pet_id": row["pet_id"],
+                "contract_id": row["contract_id"],
                 "round": row["round"],
                 "sent_at": load_datetime(row["sent_at"]),
                 "event_at": load_datetime(row["submitted_at"]),
@@ -363,8 +378,6 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 "manual_grade": row["manual_grade"] or "",
                 "manual_category": row["manual_category"] or "",
                 "manual_reason": row["manual_reason"] or "",
-                "manager_actions": load_json(row["manager_actions_json"]),
-                "manager_comment": row["manager_comment"],
                 "reviewed_at": load_datetime(row["reviewed_at"]),
                 "pet_name": row["pet_name"],
                 "adopter_name": row["adopter_name"],
@@ -373,14 +386,15 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
         )
 
     for row in missing_items:
-        if (row["pet_id"], row["round"]) in submitted_rounds:
+        if (row["contract_id"], row["round"]) in submitted_rounds:
             continue
 
-        records[row["pet_id"]].append(
+        records[row["contract_id"]].append(
             {
                 "kind": "missing",
                 "id": row["id"],
                 "pet_id": row["pet_id"],
+                "contract_id": row["contract_id"],
                 "round": row["round"],
                 "sent_at": load_datetime(row["sent_at"]),
                 "event_at": load_datetime(row["checked_at"]),
@@ -422,20 +436,27 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
 
 def build_contracts(records: dict[str, list[dict[str, Any]]]) -> list[Contract]:
     return [
-        contract_from_records(pet_id, pet_records)
-        for pet_id, pet_records in records.items()
-        if pet_records
+        contract_from_records(contract_id, contract_records)
+        for contract_id, contract_records in records.items()
+        if contract_records
     ]
 
 
-def contract_from_records(pet_id: str, records: list[dict[str, Any]]) -> Contract:
+def contract_from_records(contract_id: str, records: list[dict[str, Any]]) -> Contract:
     latest = records[0]
     latest_risk = latest["final_risk"]
     latest_event_at = latest["event_at"]
-    adoption_date = latest["adoption_date"] or format_date(latest_event_at)
+    adoption_date = latest["adoption_date"]
+    try:
+        datetime.fromisoformat(adoption_date) if adoption_date else None
+    except ValueError:
+        adoption_date = None
+
+    if not adoption_date:
+        adoption_date = format_date(latest_event_at)
 
     return Contract(
-        id=pet_id,
+        id=contract_id,
         petName=latest["pet_name"],
         adopterName=latest["adopter_name"] or "\uC785\uC591\uC790 \uBBF8\uC785\uB825",
         applicantPhone=phone_from_records(records),
@@ -453,6 +474,9 @@ def contract_from_records(pet_id: str, records: list[dict[str, Any]]) -> Contrac
 def status_for_record(record: dict[str, Any]) -> str:
     if record["kind"] == "missing":
         return record["status_label"]
+
+    if record["approval_status"] == "APPROVED":
+        return "승인완료"
 
     risk = record["final_risk"]
     if risk == "green":
@@ -530,7 +554,7 @@ def build_modal_view_model(
     return RiskDashboardModalViewModel(
         contract=contract,
         dashboardData=get_dashboard_data(contract, records[0] if records else None),
-        upcomingTimeline=get_upcoming_timeline(contract, records[0] if records else None),
+        upcomingTimeline=get_upcoming_timeline(contract),
         certificationCards=[
             certification_card_from_record(record)
             for record in records
@@ -559,15 +583,39 @@ def get_dashboard_data(
         manualReason=latest_record.get("manual_reason") or None if latest_record else None,
     )
 
+def get_next_pending_schedule(
+    contract_id: str,
+) -> tuple[int, datetime] | None:
+    with get_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT
+                round,
+                scheduled_at
+            FROM monitoring_schedules
+            WHERE contract_id = ?
+              AND status = 'PENDING'
+            ORDER BY scheduled_at ASC
+            LIMIT 1
+            """,
+            (contract_id,),
+        ).fetchone()
+
+    if not row:
+        return None
+
+    scheduled_at = load_datetime(row["scheduled_at"])
+    if not scheduled_at:
+        return None
+
+    return row["round"], scheduled_at
 
 def get_upcoming_timeline(
-    contract: Contract,
-    latest_record: dict[str, Any] | None,
+    contract: Contract
 ) -> RiskUpcomingTimeline:
-    current_round = latest_record["round"] if latest_record else 0
-    next_round = current_round + 1
+    next_schedule = get_next_pending_schedule(contract.id)
 
-    if next_round not in ROUND_DAYS:
+    if not next_schedule:
         return RiskUpcomingTimeline(
             label="Upcoming Timeline",
             title="정기 안부 인증 완료",
@@ -575,14 +623,14 @@ def get_upcoming_timeline(
             buttonLabel="완료",
         )
 
-    adoption_date = datetime.fromisoformat(contract.adoptionDate)
-    next_date = adoption_date + timedelta(days=ROUND_DAYS[next_round])
+    next_round, scheduled_at = next_schedule
 
     return RiskUpcomingTimeline(
         label="Upcoming Timeline",
         title=f"다음 예정: {round_day_label(next_round)} 정기 안부 인증",
         description=(
-            f"예정 일자: {format_date(next_date)} · 자동 리마인드 대기중"
+            f"예정 일자: {format_date(scheduled_at)} · "
+            "자동 리마인드 대기중"
         ),
         buttonLabel="사전 안내 발송",
     )
@@ -593,7 +641,7 @@ def certification_card_from_record(
     if record["kind"] == "missing":
         return RiskCertificationCard(
             id=record["id"],
-            contractId=record["pet_id"],
+            contractId=record["contract_id"],
             tone="caution",
             title=f"{round_day_label(record['round'])} 안부 인증 미제출",
             description=record["status_label"],
@@ -608,7 +656,7 @@ def certification_card_from_record(
 
     return RiskCertificationCard(
         id=record["id"],
-        contractId=record["pet_id"],
+        contractId=record["contract_id"],
         tone="approved" if record["final_risk"] == "green" else "caution",
         title=f"{round_day_label(record['round'])} 안부 인증 제출 건",
         description=summary_from_record(record),
@@ -811,7 +859,6 @@ def round_label(round_number: int) -> str:
 
 
 def reset_seed_data() -> None:
-    """Re-seed the database with the original 4 contracts and certification histories."""
     import sys
     from pathlib import Path as _Path
 
@@ -821,4 +868,3 @@ def reset_seed_data() -> None:
 
     import seed_risk_data
     seed_risk_data.seed()
-    return f"{round_number}회차({round_day_label(round_number)})"

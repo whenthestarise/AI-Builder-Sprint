@@ -200,6 +200,9 @@ def calculate_time_risk(
 
     delayed_days = (now - sent_at).days
 
+    if delayed_days >= 15:
+        return "red"
+    
     if delayed_days > 7:
         return "red", f"[미제출 ({delayed_days}일 지연 - 긴급)]"
 
