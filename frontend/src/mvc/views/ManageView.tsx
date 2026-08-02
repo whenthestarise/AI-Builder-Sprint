@@ -70,7 +70,7 @@ export function ManageView({
        * 페이지 헤더
        * ============================== */}
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex min-h-[84px] w-full max-w-[1240px] items-center justify-between gap-5 px-5 py-4 sm:px-7 lg:px-8">
+        <div className="mx-auto flex min-h-[76px] w-full max-w-[1240px] items-center justify-between gap-5 px-5 py-3 sm:px-7 lg:px-8">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-semibold">
               <Link
@@ -110,7 +110,7 @@ export function ManageView({
       {/* ==============================
        * 본문
        * ============================== */}
-      <main className="min-h-[calc(100vh-84px)] bg-[#f3f6fa]">
+      <main className="min-h-[calc(100vh-76px)] bg-[#f3f6fa]">
         <div
           className={[
             "mx-auto grid w-full max-w-[1240px] gap-5",

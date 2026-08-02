@@ -63,17 +63,20 @@ def create_signed_contract(
                 contract_id,
                 pet_id,
                 adopter_name,
+                applicant_phone,
                 status,
                 signed_at,
                 created_at
             )
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(contract_id) DO NOTHING
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(contract_id) DO UPDATE SET
+                applicant_phone = excluded.applicant_phone
             """,
             (
                 contract_id,
                 payload.petId,
                 payload.adopterName,
+                payload.applicantPhone,
                 "SIGNED",
                 dump_datetime(payload.signedAt),
                 dump_datetime(created_at),

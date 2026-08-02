@@ -178,6 +178,7 @@ def review_certification(
     approved_status: str,
     manager_actions: list[str] | None = None,
     manager_comment: str | None = None,
+    image_data_url: str | None = None,
 ) -> bool:
     initialize_database()
 
@@ -199,6 +200,7 @@ def review_certification(
             approved_status,
             dump_json(manager_actions or []),
             manager_comment or "",
+            image_data_url,
             dump_datetime(reviewed_at),
             certification_id,
             pet_id,
@@ -217,6 +219,7 @@ def review_certification(
                     approval_status = ?,
                     manager_actions_json = ?,
                     manager_comment = ?,
+                    manager_image_data_url = ?,
                     reviewed_at = ?
                 WHERE id = ? AND pet_id = ?
                 """,
@@ -309,6 +312,7 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 s.files_json,
                 s.manager_actions_json,
                 s.manager_comment,
+                s.manager_image_data_url,
                 s.manual_grade,
                 s.manual_category,
                 s.manual_reason,
@@ -338,6 +342,7 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 m.status_label,
                 m.manager_actions_json,
                 m.manager_comment,
+                m.manager_image_data_url,
                 m.reviewed_at,
                 p.pet_name,
                 p.adopter_name,
@@ -375,6 +380,7 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 "files": load_json(row["files_json"]),
                 "manager_actions": load_json(row["manager_actions_json"]) if row["manager_actions_json"] else [],
                 "manager_comment": row["manager_comment"] or "",
+                "manager_image_data_url": row["manager_image_data_url"] or "",
                 "manual_grade": row["manual_grade"] or "",
                 "manual_category": row["manual_category"] or "",
                 "manual_reason": row["manual_reason"] or "",
@@ -407,6 +413,7 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 "files": [],
                 "manager_actions": load_json(row["manager_actions_json"]),
                 "manager_comment": row["manager_comment"],
+                "manager_image_data_url": row["manager_image_data_url"] or "",
                 "reviewed_at": load_datetime(row["reviewed_at"]),
                 "pet_name": row["pet_name"],
                 "adopter_name": row["adopter_name"],
@@ -435,11 +442,62 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
 
 
 def build_contracts(records: dict[str, list[dict[str, Any]]]) -> list[Contract]:
-    return [
+    initialize_database()
+    contracts = [
         contract_from_records(contract_id, contract_records)
         for contract_id, contract_records in records.items()
         if contract_records
     ]
+    existing_ids = {contract.id for contract in contracts}
+
+    with get_connection() as connection:
+        signed_contracts = connection.execute(
+            """
+            SELECT
+                c.contract_id,
+                c.pet_id,
+                c.adopter_name,
+                c.applicant_phone,
+                c.status,
+                c.signed_at,
+                p.pet_name
+            FROM contracts c
+            JOIN pets p ON p.pet_id = c.pet_id
+            ORDER BY c.signed_at DESC
+            """
+        ).fetchall()
+
+    contracts.extend(
+        contract_from_signed_row(row)
+        for row in signed_contracts
+        if row["contract_id"] not in existing_ids
+    )
+    contracts.sort(key=lambda contract: contract.signedAt, reverse=True)
+    return contracts
+
+
+def contract_from_signed_row(row) -> Contract:
+    signed_at = load_datetime(row["signed_at"])
+    signed_label = (
+        signed_at.date().isoformat()
+        if signed_at
+        else row["signed_at"]
+    )
+
+    return Contract(
+        id=row["contract_id"],
+        petName=row["pet_name"],
+        adopterName=row["adopter_name"] or "입양자 미입력",
+        applicantPhone=row["applicant_phone"],
+        status="사후관리 시작",
+        signedAt=signed_label,
+        nextCheck="첫 안부 인증 대기",
+        risk="normal",
+        petType="반려동물",
+        adoptionDate=signed_label,
+        lastCertificationDate=None,
+        certificationRound=0,
+    )
 
 
 def contract_from_records(contract_id: str, records: list[dict[str, Any]]) -> Contract:
@@ -566,10 +624,10 @@ def get_dashboard_data(
     contract: Contract,
     latest_record: dict[str, Any] | None,
 ) -> RiskDashboardData:
-    risk = latest_record["final_risk"] if latest_record else "orange"
+    risk = latest_record["final_risk"] if latest_record else "green"
     header_status, badge_class, dot_class = FORM_RISK_TO_BADGE.get(
         risk,
-        FORM_RISK_TO_BADGE["orange"],
+        FORM_RISK_TO_BADGE["green"],
     )
 
     return RiskDashboardData(
@@ -632,7 +690,7 @@ def get_upcoming_timeline(
             f"예정 일자: {format_date(scheduled_at)} · "
             "자동 리마인드 대기중"
         ),
-        buttonLabel="사전 안내 발송",
+        buttonLabel="알림 발송",
     )
 
 def certification_card_from_record(
@@ -648,6 +706,7 @@ def certification_card_from_record(
             status=record["approval_status"],
             submittedAt=format_datetime(record["event_at"]),
             roundLabel=round_label(record["round"]),
+            imageUrl=record["manager_image_data_url"] or None,
             answers=[],
             managerActions=record["manager_actions"],
             managerComment=record["manager_comment"],
@@ -663,7 +722,10 @@ def certification_card_from_record(
         status=record["approval_status"],
         submittedAt=format_datetime(record["event_at"]),
         roundLabel=round_label(record["round"]),
-        imageUrl=image_url_from_files(record["files"]),
+        imageUrl=(
+            record["manager_image_data_url"]
+            or image_url_from_files(record["files"])
+        ),
         answers=answers_from_record(record),
         managerActions=record["manager_actions"],
         managerComment=record["manager_comment"],

@@ -9,6 +9,14 @@ import type {
   Pet,
 } from "@/mvc/models/adminModel";
 import { AdminShell } from "@/mvc/views/AdminShell";
+import { getBackendApiBaseUrl } from "@/mvc/services/adminApi";
+
+type ModusignDocument = {
+  id: string;
+  status: string;
+};
+
+const MODUSIGN_TEST_PHONE = "010-2422-4599";
 
 /* ==============================
  * 계약 화면 확장 데이터
@@ -22,7 +30,6 @@ type ContractViewModel = Contract & {
   specialClause?: string;
   fullTerms?: string;
   aiGuide?: string;
-  signaturePath?: string;
 };
 
 type DataLabel = {
@@ -50,6 +57,12 @@ export function ContractsAdminView({
   const [isConfirmed, setIsConfirmed] = useState(true);
   const [isSignatureModalOpen, setIsSignatureModalOpen] =
     useState(false);
+  const [isSignatureSentModalOpen, setIsSignatureSentModalOpen] =
+    useState(false);
+  const [isSendingSignature, setIsSendingSignature] = useState(false);
+  const [signatureError, setSignatureError] = useState("");
+  const [modusignDocument, setModusignDocument] =
+    useState<ModusignDocument | null>(null);
 
   const primaryTrait = pet.traits[0] ?? "행동 특성 확인 필요";
 
@@ -74,13 +87,61 @@ export function ContractsAdminView({
     contract.fullTerms ??
     [...baseClauses, specialClause].filter(Boolean).join("\n\n");
 
-  const signatureHref =
-    contract.signaturePath ??
-    `/modusign?contractId=${encodeURIComponent(
-      String(contract.id),
-    )}&petId=${encodeURIComponent(
-      String(pet.id),
-    )}&applicationId=${encodeURIComponent(String(applicant.id))}`;
+  async function sendSignatureRequest() {
+    setIsSendingSignature(true);
+    setSignatureError("");
+
+    try {
+      const inputMappings = buildModusignInputMappings({
+        contract,
+        pet,
+        applicant,
+        baseClauses,
+        specialClause,
+        fullTerms,
+        dataLabels,
+      });
+      const response = await fetch("/api/modusign/request-signature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: `책임 입양 계약서_${pet.name}_${applicant.applicant}`,
+          participants: [
+            {
+              role: "",
+              name: applicant.applicant,
+              signingMethod: {
+                type: "KAKAO",
+                value: MODUSIGN_TEST_PHONE.replace(/\D/g, ""),
+              },
+              locale: "ko",
+            },
+          ],
+          inputMappings,
+        }),
+      });
+      const result = (await response.json()) as {
+        message?: string;
+        document?: ModusignDocument;
+      };
+
+      if (!response.ok || !result.document?.id) {
+        throw new Error(result.message || "모두싸인 발송에 실패했습니다.");
+      }
+
+      setModusignDocument(result.document);
+      setIsSignatureModalOpen(false);
+      setIsSignatureSentModalOpen(true);
+    } catch (error) {
+      setSignatureError(
+        error instanceof Error
+          ? error.message
+          : "모두싸인 발송에 실패했습니다.",
+      );
+    } finally {
+      setIsSendingSignature(false);
+    }
+  }
 
   return (
     <AdminShell>
@@ -90,8 +151,8 @@ export function ContractsAdminView({
       <header className="border-b border-slate-200 bg-white">
         <div
           className={[
-            "mx-auto flex min-h-[84px] w-full max-w-[1240px]",
-            "items-center justify-between gap-5 px-5 py-4",
+            "mx-auto flex min-h-[76px] w-full max-w-[1240px]",
+            "items-center justify-between gap-5 px-5 py-3",
             "sm:px-7 lg:px-8",
           ].join(" ")}
         >
@@ -144,7 +205,7 @@ export function ContractsAdminView({
       {/* ==============================
        * 본문
        * ============================== */}
-      <section className="min-h-[calc(100vh-84px)] bg-[#f3f6fa]">
+      <section className="min-h-[calc(100vh-76px)] bg-[#f3f6fa]">
         <div className="mx-auto w-full max-w-[1240px] px-5 py-6 sm:px-7 lg:px-8">
           <section
             className={[
@@ -333,14 +394,194 @@ export function ContractsAdminView({
           applicant={applicant}
           baseClauses={baseClauses}
           specialClause={specialClause}
-          signatureHref={signatureHref}
+          isSending={isSendingSignature}
+          error={signatureError}
+          onSend={sendSignatureRequest}
           onClose={() =>
             setIsSignatureModalOpen(false)
           }
         />
       )}
+
+      {isSignatureSentModalOpen && modusignDocument && (
+        <SignatureSentModal
+          pet={pet}
+          applicant={applicant}
+          document={modusignDocument}
+          onClose={() => setIsSignatureSentModalOpen(false)}
+        />
+      )}
     </AdminShell>
   );
+}
+
+function buildModusignInputMappings({
+  contract,
+  pet,
+  applicant,
+  baseClauses,
+  specialClause,
+  fullTerms,
+  dataLabels,
+}: {
+  contract: ContractViewModel;
+  pet: Pet;
+  applicant: AdoptionApplication;
+  baseClauses: string[];
+  specialClause: string;
+  fullTerms: string;
+  dataLabels: DataLabel[];
+}) {
+  const mockOriginalOwner = {
+    name: "Pawmise",
+    representative: "Pawmise 입양관리팀",
+    phone: "010-0000-0000",
+    emergencyPhone: "010-0000-0001",
+    email: "contract@pawmise.example",
+    address: "부산광역시 금정구 펫케어로 123",
+    registrationNumber: "000-00-00000",
+  };
+  const mappings = new Map<string, string>();
+  const add = (labels: string[], value?: string) => {
+    const normalizedValue = value?.trim();
+    if (!normalizedValue) return;
+    labels.forEach((label) => mappings.set(label, normalizedValue));
+  };
+
+  dataLabels.forEach(({ label, value }) => add([label], value));
+  add(["contractId", "계약번호", "문서번호"], contract.id);
+  add(["contractDate", "계약일", "계약체결일"], new Date().toISOString().slice(0, 10));
+  add(["petId", "동물ID", "동물번호"], pet.id);
+  add(["petName", "동물이름", "입양동물", "반려동물명"], pet.name);
+  add(["petAge", "나이", "동물나이"], pet.age);
+  add(["petBreed", "품종", "견종"], pet.breed);
+  add(["petWeight", "체중"], pet.weight);
+  add(["petGender", "성별"], (pet as Pet & { gender?: string }).gender);
+  add(["petTraits", "동물특성", "특이사항"], pet.traits.join(", "));
+  add(["rescueDate", "구조일"], pet.rescueDate);
+  add(["rescueLocation", "구조장소"], pet.rescueLocation);
+  add(["shelterName", "보호소", "보호소명"], pet.shelterName);
+  add(
+    [
+      "rescuerName",
+      "rescuerOrOriginalOwnerName",
+      "구조자명",
+      "구조자 성명",
+      "원보호자명",
+      "원보호자 성명",
+      "구조자/원보호자",
+      "구조자/원보호자 성명",
+    ],
+    mockOriginalOwner.name,
+  );
+  add(
+    [
+      "rescuerAddress",
+      "originalOwnerAddress",
+      "구조자 주소",
+      "원보호자 주소",
+      "구조자/원보호자 주소",
+    ],
+    mockOriginalOwner.address,
+  );
+  add(
+    [
+      "rescueDate",
+      "rescuerAcquisitionDate",
+      "구조일",
+      "구조 날짜",
+      "보호 시작일",
+    ],
+    pet.rescueDate,
+  );
+  add(
+    [
+      "rescuerOrganization",
+      "originalShelter",
+      "구조기관",
+      "원보호기관",
+      "보호기관명",
+    ],
+    mockOriginalOwner.name,
+  );
+  add(
+    [
+      "rescuerRepresentative",
+      "originalOwnerRepresentative",
+      "구조자 대표자",
+      "원보호자 대표자",
+      "구조자/원보호자 대표자",
+    ],
+    mockOriginalOwner.representative,
+  );
+  add(
+    [
+      "rescuerPhone",
+      "originalOwnerPhone",
+      "구조자 연락처",
+      "원보호자 연락처",
+      "구조자/원보호자 연락처",
+      "보호소 연락처",
+    ],
+    mockOriginalOwner.phone,
+  );
+  add(
+    [
+      "rescuerEmergencyPhone",
+      "originalOwnerEmergencyPhone",
+      "구조자 비상연락처",
+      "원보호자 비상연락처",
+      "구조자/원보호자 비상연락처",
+    ],
+    mockOriginalOwner.emergencyPhone,
+  );
+  add(
+    [
+      "rescuerEmail",
+      "originalOwnerEmail",
+      "구조자 이메일",
+      "원보호자 이메일",
+      "구조자/원보호자 이메일",
+      "보호소 이메일",
+    ],
+    mockOriginalOwner.email,
+  );
+  add(
+    [
+      "rescuerRegistrationNumber",
+      "originalOwnerRegistrationNumber",
+      "구조자 등록번호",
+      "원보호자 등록번호",
+      "구조자/원보호자 등록번호",
+      "사업자등록번호",
+    ],
+    mockOriginalOwner.registrationNumber,
+  );
+  add(
+    ["adopterName", "입양자", "입양자명", "입양자 성명", "신청자명", "이름"],
+    applicant.applicant,
+  );
+  add(["phone", "연락처", "전화번호", "입양자연락처"], applicant.phone);
+  add(["주민등록번호"], "000000-0000000");
+  add(["비상연락처"], mockOriginalOwner.emergencyPhone);
+  add(["후원비(문자)"], "금 영 원정");
+  add(["후원비(숫자)"], "0");
+  add(["email", "이메일", "SNS / 이메일", "입양자이메일"], applicant.email);
+  add(["housingType", "주거형태", "주거환경", "주소"], applicant.home);
+  add(["petExperience", "양육경험", "반려동물경험"], applicant.experience);
+  add(["awayHours", "부재시간", "외출시간"], applicant.awayHours);
+  add(["baseClauses", "기본약관"], baseClauses.join("\n"));
+  add(
+    ["specialClause", "맞춤특약", "AI특약", "추가조항", "추가계약내용"],
+    specialClause,
+  );
+  add(["fullTerms", "전체약관", "계약내용"], fullTerms);
+  add(["aiGuide", "AI조율가이드"], contract.aiGuide);
+
+  return Array.from(mappings, ([dataLabel, value]) => ({
+    dataLabel,
+    value,
+  }));
 }
 
 /* ==============================
@@ -353,7 +594,9 @@ function ContractSignatureModal({
   applicant,
   baseClauses,
   specialClause,
-  signatureHref,
+  isSending,
+  error,
+  onSend,
   onClose,
 }: {
   contract: ContractViewModel;
@@ -361,7 +604,9 @@ function ContractSignatureModal({
   applicant: AdoptionApplication;
   baseClauses: string[];
   specialClause: string;
-  signatureHref: string;
+  isSending: boolean;
+  error: string;
+  onSend: () => void;
   onClose: () => void;
 }) {
   const [showFullTerms, setShowFullTerms] =
@@ -494,13 +739,292 @@ function ContractSignatureModal({
           △ 위 조건 위반 시 동물에 대한 소유권이 보호소로 귀속됨을 인정합니다.
         </p>
 
-        <Link
-          href={signatureHref}
-          className="mt-5 flex h-14 w-full items-center justify-center rounded-lg bg-blue-600 px-6 text-lg font-extrabold text-white shadow-sm transition hover:bg-blue-700"
+        <button
+          type="button"
+          onClick={onSend}
+          disabled={isSending}
+          className="mt-5 flex h-14 w-full items-center justify-center rounded-lg bg-blue-600 px-6 text-lg font-extrabold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:bg-blue-300"
         >
-          위 약관에 동의하며 모두싸인으로 전자서명 진행하기
-        </Link>
+          {isSending
+            ? "모두싸인 문서 생성 중..."
+            : "위 약관에 동의하며 모두싸인으로 전자서명 발송하기"}
+        </button>
+        {error && (
+          <p className="mt-3 text-center text-sm font-semibold text-red-600">
+            {error}
+          </p>
+        )}
       </div>
+    </div>
+  );
+}
+
+function SignatureSentModal({
+  pet,
+  applicant,
+  document,
+  onClose,
+}: {
+  pet: Pet;
+  applicant: AdoptionApplication;
+  document: ModusignDocument;
+  onClose: () => void;
+}) {
+  const documentId = document.id;
+  const [isCompleted, setIsCompleted] = useState(false);
+  const [statusMessage, setStatusMessage] = useState(
+    "입양자 서명 입력 중",
+  );
+  const [completionError, setCompletionError] = useState("");
+  const [isChecking, setIsChecking] = useState(false);
+
+  async function checkSignatureStatus() {
+    setIsChecking(true);
+    setCompletionError("");
+
+    try {
+      const response = await fetch(
+        `/api/modusign/documents/${encodeURIComponent(document.id)}`,
+        { cache: "no-store" },
+      );
+      const result = (await response.json()) as {
+        message?: string;
+        document?: ModusignDocument;
+      };
+
+      if (!response.ok || !result.document) {
+        throw new Error(result.message || "서명 상태를 확인하지 못했습니다.");
+      }
+
+      if (result.document.status === "COMPLETED") {
+        setStatusMessage("계약 완료 처리 중");
+        await finalizeSignedContract({
+          contractId: document.id,
+          pet,
+          applicant,
+        });
+        setStatusMessage("서명 완료");
+        setIsCompleted(true);
+        return;
+      }
+
+      if (
+        result.document.status === "ABORTED" ||
+        result.document.status === "PROCESSING_FAILED"
+      ) {
+        throw new Error("모두싸인 문서가 중단되었거나 처리에 실패했습니다.");
+      }
+
+      setStatusMessage(
+        result.document.status === "ON_PROCESSING"
+          ? "문서 발송 준비 중"
+          : "입양자 서명 입력 중",
+      );
+      setCompletionError("아직 모두싸인 서명이 완료되지 않았습니다.");
+    } catch (error) {
+      setCompletionError(
+        error instanceof Error
+          ? error.message
+          : "서명 상태 확인에 실패했습니다.",
+      );
+    } finally {
+      setIsChecking(false);
+    }
+  }
+
+  if (isCompleted) {
+    return (
+      <ContractCompletedModal
+        applicant={applicant}
+        pet={pet}
+        onClose={onClose}
+      />
+    );
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/45 px-4 py-8"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="signature-sent-modal-title"
+    >
+      <section className="w-full max-w-[604px] rounded-[22px] bg-white px-7 py-10 shadow-2xl sm:px-9">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#fee500] text-slate-700">
+          <KakaoTalkIcon />
+        </div>
+
+        <h2
+          id="signature-sent-modal-title"
+          className="mt-4 text-center text-2xl font-extrabold tracking-tight text-slate-950"
+        >
+          모두싸인 알림톡 발송 완료!
+        </h2>
+
+        <p className="mt-3 text-center text-sm font-medium leading-6 text-slate-500">
+          {applicant.applicant} 님의 카카오톡으로 전자서명 링크가 전송되었습니다.
+          <br />
+          서명 후 아래 완료 버튼을 눌러주세요.
+        </p>
+
+        <dl className="mt-7 space-y-5 rounded-xl border border-slate-200 bg-slate-50 px-5 py-6 text-sm sm:px-6">
+          <SentInfoRow
+            label="수신"
+            value={`${applicant.applicant} (${MODUSIGN_TEST_PHONE})`}
+          />
+          <SentInfoRow
+            label="문서"
+            value={`책임 입양 계약서 #${documentId}`}
+          />
+          <SentInfoRow
+            label="상태"
+            value={
+              <span className="rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-700">
+                {statusMessage}
+              </span>
+            }
+          />
+        </dl>
+
+        {completionError && (
+          <p className="mt-5 text-center text-xs font-semibold text-red-600">
+            {completionError}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={checkSignatureStatus}
+          disabled={isChecking}
+          className="mt-6 flex h-14 w-full items-center justify-center rounded-lg bg-blue-600 text-lg font-extrabold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:bg-blue-300"
+        >
+          {isChecking ? "서명 상태 확인 중..." : "서명완료"}
+        </button>
+      </section>
+    </div>
+  );
+}
+
+async function finalizeSignedContract({
+  contractId,
+  pet,
+  applicant,
+}: {
+  contractId: string;
+  pet: Pet;
+  applicant: AdoptionApplication;
+}) {
+  const response = await fetch(
+    `${getBackendApiBaseUrl()}/api/contracts/sign-complete`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contractId,
+        petId: pet.id,
+        petName: pet.name,
+        adopterName: applicant.applicant,
+        applicantPhone: applicant.phone,
+        signedAt: new Date().toISOString(),
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const result = (await response.json().catch(() => null)) as {
+      detail?: string;
+    } | null;
+    throw new Error(result?.detail || "계약 완료 처리에 실패했습니다.");
+  }
+}
+
+function ContractCompletedModal({
+  applicant,
+  pet,
+  onClose,
+}: {
+  applicant: AdoptionApplication;
+  pet: Pet;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/45 px-4 py-8"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="contract-completed-modal-title"
+    >
+      <section className="w-full max-w-[604px] rounded-[22px] bg-white px-7 py-10 shadow-2xl sm:px-9">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-3xl">
+          🎉
+        </div>
+        <h2
+          id="contract-completed-modal-title"
+          className="mt-5 text-center text-2xl font-extrabold text-slate-950"
+        >
+          책임 입양 계약 완결!
+        </h2>
+        <p className="mt-3 text-center text-sm font-medium text-slate-500">
+          {applicant.applicant} 님과 {pet.name}의 입양 계약이 법적 효력을 갖추었습니다.
+        </p>
+
+        <div className="mt-7 space-y-5 rounded-xl border border-slate-200 bg-slate-50 px-6 py-6 text-sm font-bold text-slate-900">
+          <CompletionItem icon={<ArchiveIcon />}>
+            아카이빙 : 모두싸인 클라우드 보관 완료
+          </CompletionItem>
+          <CompletionItem icon={<CalendarIcon />}>
+            CLM 설정 : 주기별 알림 스케줄러 등록
+          </CompletionItem>
+          <CompletionItem icon={<AgentIcon />}>
+            AI 에이전트 : 모니터링 리스크 대시보드 연동
+          </CompletionItem>
+        </div>
+
+        <div className="mt-7 grid grid-cols-[1fr_1.85fr] gap-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-14 rounded-lg border border-slate-200 bg-white text-lg font-extrabold text-slate-900 transition hover:bg-slate-50"
+          >
+            완료
+          </button>
+          <Link
+            href="/risk"
+            className="flex h-14 items-center justify-center rounded-lg bg-blue-600 text-lg font-extrabold text-white transition hover:bg-blue-700"
+          >
+            입양관리로 이동 →
+          </Link>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function CompletionItem({
+  icon,
+  children,
+}: {
+  icon: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-blue-600">{icon}</span>
+      <span>{children}</span>
+    </div>
+  );
+}
+
+function SentInfoRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-5">
+      <dt className="shrink-0 font-medium text-slate-500">{label}</dt>
+      <dd className="min-w-0 text-right font-bold text-slate-900">{value}</dd>
     </div>
   );
 }
@@ -689,6 +1213,53 @@ function SparkleIcon() {
       <path d="m12 3 1.2 3.8L17 8l-3.8 1.2L12 13l-1.2-3.8L7 8l3.8-1.2L12 3Z" />
       <path d="m18 14 .7 2.3L21 17l-2.3.7L18 20l-.7-2.3L15 17l2.3-.7L18 14Z" />
       <path d="m5 13 .7 2.3L8 16l-2.3.7L5 19l-.7-2.3L2 16l2.3-.7L5 13Z" />
+    </svg>
+  );
+}
+
+function KakaoTalkIcon() {
+  return (
+    <svg
+      width="32"
+      height="32"
+      viewBox="0 0 32 32"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M16 6C9.37 6 4 10.2 4 15.38c0 3.34 2.25 6.28 5.63 7.94l-1.18 4.3c-.1.39.34.7.68.47l5.05-3.35c.6.08 1.2.12 1.82.12 6.63 0 12-4.2 12-9.38S22.63 6 16 6Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function ArchiveIcon() {
+  return <LineIcon path="M5 8h14v12H5z M4 4h16v4H4z M10 12h4" />;
+}
+
+function CalendarIcon() {
+  return <LineIcon path="M5 5h14v15H5z M8 3v4 M16 3v4 M5 10h14" />;
+}
+
+function AgentIcon() {
+  return <LineIcon path="M6 8h12v10H6z M9 12h.01 M15 12h.01 M9 16h6 M12 4v4" />;
+}
+
+function LineIcon({ path }: { path: string }) {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d={path} />
     </svg>
   );
 }

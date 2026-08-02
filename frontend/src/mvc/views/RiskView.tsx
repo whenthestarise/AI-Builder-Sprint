@@ -350,10 +350,7 @@ function RiskTableRow({
             "inline-flex h-8 items-center justify-center gap-1.5",
             "whitespace-nowrap rounded-md px-3",
             "text-[11px] font-bold text-white",
-            "transition-colors",
-            item.riskLevel === "normal"
-              ? "bg-blue-600 hover:bg-blue-700"
-              : "bg-slate-900 hover:bg-slate-800",
+            "bg-blue-600 transition-colors hover:bg-blue-700",
           ].join(" ")}
         >
           <DashboardIcon />

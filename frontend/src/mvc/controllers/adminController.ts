@@ -24,7 +24,6 @@ type ContractsViewModel = {
     specialClause?: string;
     fullTerms?: string;
     aiGuide?: string;
-    signaturePath?: string;
   };
   pet: Pet;
   applicant: AdoptionApplication;
@@ -44,10 +43,7 @@ export async function getDashboardViewModel() {
     ["/api/manage"],
     "manage list",
   );
-  const pets = await attachAiClausesToPets(
-    manageData.pets,
-    manageData.applications,
-  );
+  const pets = manageData.pets.map(normalizePet);
 
   return {
     stats: {
@@ -139,11 +135,6 @@ export async function getContractsViewModel(params?: {
       specialClause,
       fullTerms: [...baseClauses, ...customClauses].join("\n\n"),
       aiGuide: preview.ai_summary,
-      signaturePath: `/modusign?contractId=${encodeURIComponent(
-        `DRAFT-${pet.id}-${applicant.id}`,
-      )}&petId=${encodeURIComponent(pet.id)}&applicationId=${encodeURIComponent(
-        applicant.id,
-      )}`,
     },
     pet,
     applicant,
@@ -185,37 +176,6 @@ function normalizePet(pet: Pet): Pet {
     ...pet,
     imageUrl: pet.imageUrl || "",
   };
-}
-
-async function attachAiClausesToPets(
-  pets: Pet[],
-  applications: AdoptionApplication[],
-) {
-  return Promise.all(
-    pets.map(async (pet) => {
-      const normalizedPet = normalizePet(pet);
-      const application = applications.find(
-        (item) => item.petId === normalizedPet.id,
-      );
-
-      if (!application) {
-        return normalizedPet;
-      }
-
-      const preview = await generateContractPreview(
-        normalizedPet,
-        application,
-      );
-
-      return {
-        ...normalizedPet,
-        note:
-          preview.custom_clauses
-            .map((clause, index) => `${index + 1}. ${clause}`)
-            .join("\n") || normalizedPet.note,
-      };
-    }),
-  );
 }
 
 function generateContractPreview(

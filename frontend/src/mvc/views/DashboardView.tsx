@@ -408,7 +408,7 @@ function getPetDisplayText(
   if (pet.status === "matching") {
     return {
       notice:
-        pet.note ||
+        pet.traits?.map(formatBehaviorTrait).join("  ") ||
         "입양 신청서 검토 및 신청자 심사가 진행 중입니다.",
       noticeClassName:
         "border-amber-300 bg-amber-50 text-amber-800",
@@ -433,14 +433,18 @@ function getPetDisplayText(
 
   return {
     notice:
+      pet.traits?.map(formatBehaviorTrait).join(", ") ||
       pet.note ||
-      pet.traits?.map((trait) => `#${trait}`).join(", ") ||
       "현재 입양 신청이 가능한 보호 동물입니다.",
     noticeClassName:
       "border-amber-300 bg-amber-50 text-slate-600",
     footer: "신청 가능",
     action: "상세 보기",
   };
+}
+
+function formatBehaviorTrait(trait: string) {
+  return `#${trait.replace(/^⚠️?\s*/, "").trim()}`;
 }
 
 /* ==============================

@@ -64,6 +64,7 @@ def approve_contract_certification(
         approved_status=payload.approvedStatus,
         manager_actions=payload.managerActions,
         manager_comment=payload.managerComment,
+        image_data_url=payload.imageDataUrl,
     )
     if not reviewed:
         raise HTTPException(

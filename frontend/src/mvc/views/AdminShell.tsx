@@ -33,7 +33,7 @@ const navigationItems: NavigationItem[] = [
     label: "대시보드 홈",
     description: "보호 동물 현황 & 입양 매칭",
     icon: "dashboard",
-    activePaths: ["/main", "/manage", "/contracts", "/modusign"],
+    activePaths: ["/main", "/manage", "/contracts"],
   },
   {
     href: "/risk",
@@ -92,7 +92,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
           오른쪽 PageHeader와 같은 높이의 빈 영역입니다.
           사이드바 메뉴는 페이지 헤더 아래에서 시작합니다.
         */}
-        <div className="h-[138px] shrink-0 border-b border-slate-100" />
+        <div className="h-[120px] shrink-0 border-b border-slate-100" />
 
         {/* 메뉴 */}
         <nav className="flex flex-1 flex-col gap-2 px-3 py-5">
@@ -115,7 +115,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
       {/* ==============================
        * 모바일 헤더
        * ============================== */}
-      <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-5 lg:hidden">
+      <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-slate-200 bg-white px-5 lg:hidden">
         <Link
           href="/main"
           className="flex items-center gap-2 text-base font-black tracking-tight text-slate-950"
@@ -259,8 +259,8 @@ export function PageHeader({
       */}
       <div
         className={[
-          "flex min-h-[138px] flex-col justify-center gap-4",
-          "px-5 py-6",
+          "flex min-h-[120px] flex-col justify-center gap-3",
+          "px-5 py-4",
           "sm:flex-row sm:items-center sm:justify-between sm:px-7",
           "lg:px-8",
         ].join(" ")}
@@ -301,7 +301,7 @@ export function PageContent({ children }: { children: ReactNode }) {
   return (
     <section
       className={[
-        "min-h-[calc(100vh-138px)] bg-[#f3f6fa]",
+        "min-h-[calc(100vh-120px)] bg-[#f3f6fa]",
         "px-5 py-6",
         "sm:px-7",
         "lg:px-8 lg:py-7",

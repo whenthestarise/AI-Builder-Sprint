@@ -16,6 +16,7 @@ class ContractSignCompleteRequest(BaseModel):
     petId: str = Field(min_length=1, max_length=80)
     petName: str = Field(min_length=1, max_length=50)
     adopterName: str = Field(min_length=1, max_length=50)
+    applicantPhone: str | None = Field(default=None, max_length=30)
     signedAt: datetime
 
 
