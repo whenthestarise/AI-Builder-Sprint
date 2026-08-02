@@ -1740,8 +1740,8 @@ function createCertificationFormData(
 function getBackendBaseUrl() {
   return (
     process.env.NEXT_PUBLIC_API_BASE_URL ??
-    "http://localhost:8000"
-  );
+    "http://113.131.34.14:8000"
+  ).replace(/\/$/, "");
 }
 
 function goBackAfterSubmission() {

@@ -371,7 +371,7 @@ function PetCard({
           <div
             className={[
               "mt-4 min-h-[42px] rounded-md border px-3 py-2",
-              "text-xs font-medium leading-5",
+              "whitespace-pre-line text-xs font-medium leading-5",
               displayText.noticeClassName,
             ].join(" ")}
           >
