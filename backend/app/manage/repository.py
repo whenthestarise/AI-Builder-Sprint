@@ -16,7 +16,10 @@ PETS = [
         "gender": "수컷",
         "weight": "8.5kg",
         "neutered": True,
-        "imageUrl": None,
+        "imageUrl": (
+            "https://images.unsplash.com/photo-1543466835-00a7907e9de1"
+            "?auto=format&fit=crop&w=900&q=80"
+        ),
         "status": "available",
         "contractStatus": "매칭 대기",
         "traits": [
@@ -43,7 +46,10 @@ PETS = [
         "gender": "암컷",
         "weight": "3.2kg",
         "neutered": True,
-        "imageUrl": None,
+        "imageUrl": (
+            "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e"
+            "?auto=format&fit=crop&w=900&q=80"
+        ),
         "status": "available",
         "contractStatus": "매칭 대기",
         "traits": [
@@ -70,7 +76,10 @@ PETS = [
         "gender": "수컷",
         "weight": "22.0kg",
         "neutered": True,
-        "imageUrl": None,
+        "imageUrl": (
+            "https://images.unsplash.com/photo-1552053831-71594a27632d"
+            "?auto=format&fit=crop&w=900&q=80"
+        ),
         "status": "available",
         "contractStatus": "매칭 대기",
         "traits": [
@@ -97,7 +106,10 @@ PETS = [
         "gender": "암컷",
         "weight": "5.1kg",
         "neutered": True,
-        "imageUrl": None,
+        "imageUrl": (
+            "https://images.unsplash.com/photo-1450778869180-41d0601e046e"
+            "?auto=format&fit=crop&w=900&q=80"
+        ),
         "status": "available",
         "contractStatus": "매칭 대기",
         "traits": [
@@ -124,7 +136,10 @@ PETS = [
         "gender": "수컷",
         "weight": "6.8kg",
         "neutered": False,
-        "imageUrl": None,
+        "imageUrl": (
+            "https://images.unsplash.com/photo-1543466835-00a7907e9de1"
+            "?auto=format&fit=crop&w=900&q=80"
+        ),
         "status": "available",
         "contractStatus": "매칭 대기",
         "traits": [
