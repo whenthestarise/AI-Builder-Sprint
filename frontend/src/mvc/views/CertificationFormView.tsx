@@ -54,10 +54,12 @@ type RoundMeta = {
 
 export type CertificationSubmission = {
   petId?: string;
+  scheduleId?: string;
   round: CertificationRound;
   petName: string;
   adopterName?: string;
   adoptionDate?: string;
+  sentAt?: string;
   highestRisk: RiskLevel;
   answers: Record<string, string>;
   bodySymptoms: string[];
@@ -67,10 +69,12 @@ export type CertificationSubmission = {
 
 type CertificationFormViewProps = {
   petId?: string;
+  scheduleId?: string;
   round: CertificationRound;
   petName: string;
   adopterName?: string;
   adoptionDate?: string;
+  sentAt?: string;
   onSubmit?: (
     submission: CertificationSubmission,
   ) => void | Promise<void>;
@@ -432,10 +436,12 @@ const roundRadioQuestions: Partial<
 
 export function CertificationFormView({
   petId,
+  scheduleId,
   round,
   petName,
   adopterName,
   adoptionDate,
+  sentAt,
   onSubmit,
 }: CertificationFormViewProps) {
   const [answers, setAnswers] = useState<
@@ -609,10 +615,12 @@ export function CertificationFormView({
     const submission: CertificationSubmission =
       {
         petId,
+        scheduleId,
         round,
         petName,
         adopterName,
         adoptionDate,
+        sentAt,
         highestRisk,
         answers,
         bodySymptoms,
@@ -1669,6 +1677,15 @@ function createCertificationFormData(
 
   if (submission.petId) {
     formData.set("petId", submission.petId);
+  }
+  if (submission.scheduleId) {
+    formData.set(
+      "scheduleId",
+      submission.scheduleId,
+    );
+  }
+  if (submission.sentAt) {
+    formData.set("sentAt", submission.sentAt);
   }
   formData.set(
     "highestRisk",
