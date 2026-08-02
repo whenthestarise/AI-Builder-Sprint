@@ -48,6 +48,8 @@ export function ContractsAdminView({
   dataLabels,
 }: ContractsAdminViewProps) {
   const [isConfirmed, setIsConfirmed] = useState(true);
+  const [isSignatureModalOpen, setIsSignatureModalOpen] =
+    useState(false);
 
   const primaryTrait = pet.traits[0] ?? "행동 특성 확인 필요";
 
@@ -286,8 +288,11 @@ export function ContractsAdminView({
 
                     <div className="mt-4">
                       {isConfirmed ? (
-                        <Link
-                          href={signatureHref}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setIsSignatureModalOpen(true)
+                          }
                           aria-label={`${dataLabels.length}개의 계약 데이터 라벨을 사용하여 전자서명 진행`}
                           className={[
                             "flex h-12 w-full items-center justify-center gap-2",
@@ -298,7 +303,7 @@ export function ContractsAdminView({
                         >
                           AI 맞춤 책임계약 체결하기
                           <ArrowRightIcon />
-                        </Link>
+                        </button>
                       ) : (
                         <button
                           type="button"
@@ -320,6 +325,20 @@ export function ContractsAdminView({
           </section>
         </div>
       </section>
+
+      {isSignatureModalOpen && (
+        <ContractSignatureModal
+          contract={contract}
+          pet={pet}
+          applicant={applicant}
+          baseClauses={baseClauses}
+          specialClause={specialClause}
+          signatureHref={signatureHref}
+          onClose={() =>
+            setIsSignatureModalOpen(false)
+          }
+        />
+      )}
     </AdminShell>
   );
 }
@@ -327,6 +346,202 @@ export function ContractsAdminView({
 /* ==============================
  * 정보 그룹
  * ============================== */
+
+function ContractSignatureModal({
+  contract,
+  pet,
+  applicant,
+  baseClauses,
+  specialClause,
+  signatureHref,
+  onClose,
+}: {
+  contract: ContractViewModel;
+  pet: Pet;
+  applicant: AdoptionApplication;
+  baseClauses: string[];
+  specialClause: string;
+  signatureHref: string;
+  onClose: () => void;
+}) {
+  const [showFullTerms, setShowFullTerms] =
+    useState(false);
+  const standardClauses =
+    baseClauses.length > 0
+      ? baseClauses.slice(0, 3)
+      : [
+          "유기·파양 절대 금지 및 원보호소 반환 의무",
+          "정기 사후관리 모니터링 협조 의무",
+          "동물등록 완수 및 적정 사육 환경 보장",
+        ];
+  const customClauses = splitSpecialClause(
+    specialClause,
+  );
+  const documentId =
+    contract.id.startsWith("DRAFT")
+      ? `CLM-${new Date()
+          .toISOString()
+          .slice(0, 10)
+          .replaceAll("-", "")}`
+      : contract.id;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 px-4 py-8"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="contract-signature-modal-title"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[calc(100vh-4rem)] w-full max-w-[860px] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
+        onClick={(event) =>
+          event.stopPropagation()
+        }
+      >
+        <header className="flex flex-wrap items-center justify-between gap-3">
+          <span className="inline-flex h-9 items-center gap-2 rounded-full bg-blue-600 px-4 text-sm font-extrabold text-white">
+            <span
+              aria-hidden="true"
+              className="h-2 w-2 rounded-full bg-white"
+            />
+            모두싸인 CLM 전자계약 대기 중
+          </span>
+          <p className="text-sm font-semibold text-slate-500">
+            문서번호 #{documentId}
+          </p>
+        </header>
+
+        <section className="mt-5 grid gap-3 rounded-lg bg-slate-100 px-5 py-4 sm:grid-cols-2">
+          <InfoPill
+            label="입양 동물"
+            value={`${pet.name} (#${pet.id})`}
+          />
+          <InfoPill
+            label="입양자"
+            value={applicant.applicant}
+          />
+        </section>
+
+        <section className="mt-7">
+          <h3
+            id="contract-signature-modal-title"
+            className="text-lg font-extrabold text-slate-950"
+          >
+            Upstage AI가 요약한 표준계약서 핵심 의무 3대장
+          </h3>
+
+          <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            {standardClauses.map((clause, index) => (
+              <article
+                key={`${clause}-${index}`}
+                className="flex gap-4 border-b border-slate-200 px-5 py-4 last:border-b-0"
+              >
+                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white">
+                  <CheckIcon />
+                </span>
+                <div className="min-w-0">
+                  <h4 className="text-base font-extrabold text-slate-900">
+                    {clause}
+                  </h4>
+                  <p className="mt-1 text-sm font-medium leading-5 text-slate-500">
+                    {getClauseDescription(index)}
+                  </p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-5 rounded-2xl border-2 border-blue-500 bg-white p-5">
+          <span className="inline-flex rounded-full bg-blue-600 px-4 py-2 text-sm font-extrabold text-white">
+            Solar LLM이 분석한 {pet.name} 맞춤형 계약 특약
+          </span>
+
+          <div className="mt-4 space-y-4 text-sm font-bold leading-6 text-slate-900">
+            {customClauses.map((clause, index) => (
+              <p key={`${clause}-${index}`}>
+                {index + 1}. {clause}
+              </p>
+            ))}
+          </div>
+        </section>
+
+        <button
+          type="button"
+          onClick={() =>
+            setShowFullTerms(
+              (current) => !current,
+            )
+          }
+          className="mt-5 inline-flex items-center gap-2 text-sm font-extrabold text-blue-600"
+        >
+          <DocumentIcon />
+          한국동물보호협회 표준 입양계약서 원본 전체보기
+          <ChevronDownIcon />
+        </button>
+
+        {showFullTerms && (
+          <div className="mt-3 max-h-40 overflow-y-auto whitespace-pre-line rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
+            {contract.fullTerms ||
+              [...standardClauses, specialClause].join(
+                "\n\n",
+              )}
+          </div>
+        )}
+
+        <p className="mt-3 text-sm font-semibold text-red-500">
+          △ 위 조건 위반 시 동물에 대한 소유권이 보호소로 귀속됨을 인정합니다.
+        </p>
+
+        <Link
+          href={signatureHref}
+          className="mt-5 flex h-14 w-full items-center justify-center rounded-lg bg-blue-600 px-6 text-lg font-extrabold text-white shadow-sm transition hover:bg-blue-700"
+        >
+          위 약관에 동의하며 모두싸인으로 전자서명 진행하기
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function InfoPill({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center gap-3 text-base">
+      <span className="shrink-0 font-bold text-slate-500">
+        {label}
+      </span>
+      <strong className="min-w-0 truncate font-extrabold text-slate-950">
+        {value}
+      </strong>
+    </div>
+  );
+}
+
+function splitSpecialClause(value: string) {
+  const clauses = value
+    .split(/\n+|\d+\.\s*/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  return clauses.length > 0
+    ? clauses.slice(0, 2)
+    : ["입양 동물의 특성과 입양자의 환경을 반영한 맞춤 특약을 준수합니다."];
+}
+
+function getClauseDescription(index: number) {
+  return [
+    "키우지 못할 사정 발생 시 임의 양도·유기 금지, 보호소 반환 필수",
+    "사전 조율된 주기에 따라 아이의 근황 및 환경 사진 제출 필수",
+    "실내 안전 보호 의무 및 법정 동물등록 진행 필수",
+  ][index] ?? "입양 계약상 필수 의무를 성실히 이행합니다.";
+}
 
 function InfoGroup({ children }: { children: ReactNode }) {
   return (
@@ -414,6 +629,27 @@ function CheckIcon() {
       aria-hidden="true"
     >
       <path d="m5 12 4 4L19 6" />
+    </svg>
+  );
+}
+
+function DocumentIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M7 3h7l4 4v14H7z" />
+      <path d="M14 3v5h5" />
+      <path d="M10 13h5" />
+      <path d="M10 17h5" />
     </svg>
   );
 }

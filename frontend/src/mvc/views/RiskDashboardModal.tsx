@@ -434,12 +434,18 @@ export function RiskDashboardModal({
               사후관리 대시보드
             </h2>
 
-            <span
+            <button
+              type="button"
+              onClick={() =>
+                setIsStatusModalOpen(true)
+              }
               className={[
                 "inline-flex shrink-0 items-center gap-1.5 rounded-full border",
-                "px-2.5 py-0.5 text-[11px] font-bold",
+                "px-3 py-1 text-[11px] font-bold shadow-sm transition",
+                "hover:scale-[1.02] hover:shadow-md",
                 currentGradeStyle.badgeClass,
               ].join(" ")}
+              aria-label="관리자 상태 수동 변경"
             >
               <span
                 className={[
@@ -448,7 +454,8 @@ export function RiskDashboardModal({
                 ].join(" ")}
               />
               {currentHeaderStatus}
-            </span>
+              <span aria-hidden="true">✎</span>
+            </button>
           </div>
 
           <button
@@ -1228,7 +1235,7 @@ function ManualStatusModal({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-black/65 px-4 py-8"
+      className="fixed inset-0 z-[80] flex items-center justify-center overflow-y-auto bg-slate-900/45 px-4 py-8"
       role="dialog"
       aria-modal="true"
       aria-labelledby="manual-status-title"
@@ -1238,15 +1245,18 @@ function ManualStatusModal({
       }}
     >
       <div
-        className="w-full max-w-2xl overflow-hidden rounded-2xl border border-neutral-700 bg-neutral-900 text-white shadow-2xl"
+        className="w-full max-w-[520px] overflow-hidden rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl"
         onClick={(event) =>
           event.stopPropagation()
         }
       >
-        <header className="flex items-center justify-between border-b border-dashed border-neutral-700 px-7 py-5">
+        <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-6 py-4">
+          <span className="flex h-5 w-5 shrink-0 items-center justify-center text-slate-500">
+            <SettingsIcon />
+          </span>
           <h2
             id="manual-status-title"
-            className="text-xl font-bold"
+            className="min-w-0 flex-1 text-lg font-extrabold text-slate-950"
           >
             관리자 상태 수동 변경
           </h2>
@@ -1254,23 +1264,23 @@ function ManualStatusModal({
             type="button"
             onClick={onClose}
             aria-label="상태 변경 모달 닫기"
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-3xl font-bold text-white transition hover:bg-white/10"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-2xl font-bold text-slate-900 transition hover:bg-slate-100"
           >
-            x
+            ×
           </button>
         </header>
 
-        <div className="space-y-6 px-7 py-6">
+        <div className="space-y-5 bg-white px-6 py-5">
           <section>
-            <p className="text-sm font-medium text-neutral-400">
+            <p className="text-xs font-bold text-slate-700">
               현재 상태
             </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-lg font-semibold">
-              <span className="text-neutral-500">
+            <div className="mt-2 flex min-h-11 flex-wrap items-center gap-2 rounded-lg bg-orange-50 px-4 py-2 text-sm font-bold text-orange-600">
+              <span className="hidden text-slate-300">
                 [
               </span>
               <span
-                className={`h-4 w-4 rounded-full ${currentStyle.dotClass}`}
+                className={`h-2.5 w-2.5 rounded-full ${getManualGradeDotClass(currentGrade)}`}
               />
               <span
                 className={
@@ -1279,13 +1289,13 @@ function ManualStatusModal({
               >
                 {currentHeaderStatus}
               </span>
-              <span className="text-neutral-500">
+              <span className="hidden text-slate-300">
                 ]
               </span>
-              <span className="text-neutral-600">
+              <span className="hidden text-slate-300">
                 /
               </span>
-              <span className="text-neutral-300">
+              <span className="font-semibold">
                 {currentStatusDetail}
               </span>
             </div>
@@ -1295,6 +1305,7 @@ function ManualStatusModal({
             id="manual-grade"
             label="변경할 위험 등급 선택"
             value={selectedGrade}
+            showStatusDot
             onChange={(value) =>
               setSelectedGrade(
                 value as ManualGrade,
@@ -1324,7 +1335,7 @@ function ManualStatusModal({
           <div>
             <label
               htmlFor="manual-reason"
-              className="mb-2 block text-sm font-medium text-neutral-400"
+              className="mb-2 block text-xs font-bold text-slate-600"
             >
               상세 사유 입력 (필수)
             </label>
@@ -1338,16 +1349,16 @@ function ManualStatusModal({
               }
               rows={5}
               placeholder="상태 변경 사유와 후속 조치 계획을 입력하세요."
-              className="w-full resize-y rounded-lg border border-neutral-600 bg-neutral-800 px-4 py-3 text-base leading-7 text-white outline-none transition placeholder:text-neutral-500 focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
+              className="w-full resize-y rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             />
           </div>
         </div>
 
-        <footer className="flex items-center justify-between border-t border-dashed border-neutral-700 px-7 py-5">
+        <footer className="grid grid-cols-2 gap-3 bg-white px-6 pb-6">
           <button
             type="button"
             onClick={onClose}
-            className="h-12 rounded-lg border border-neutral-600 bg-neutral-900 px-6 text-sm font-bold text-white transition hover:bg-neutral-800"
+            className="h-12 rounded-lg border border-slate-200 bg-white px-5 text-sm font-bold text-slate-900 transition hover:bg-slate-50"
           >
             취소
           </button>
@@ -1355,7 +1366,7 @@ function ManualStatusModal({
             type="button"
             onClick={handleSubmit}
             disabled={!reason.trim()}
-            className="h-12 rounded-lg bg-red-500 px-7 text-sm font-bold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-neutral-600 disabled:text-neutral-400"
+            className="h-12 rounded-lg bg-blue-600 px-6 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             변경 저장
           </button>
@@ -1370,6 +1381,7 @@ function SelectField({
   label,
   value,
   options,
+  showStatusDot = false,
   onChange,
 }: {
   id: string;
@@ -1379,34 +1391,77 @@ function SelectField({
     value: string;
     label: string;
   }>;
+  showStatusDot?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
     <div>
       <label
         htmlFor={id}
-        className="mb-2 block text-sm font-medium text-neutral-400"
+        className="mb-2 block text-xs font-bold text-slate-600"
       >
         {label}
       </label>
-      <select
-        id={id}
-        value={value}
-        onChange={(event) =>
-          onChange(event.target.value)
-        }
-        className="h-14 w-full rounded-lg border border-neutral-600 bg-neutral-800 px-4 text-base font-semibold text-white outline-none transition focus:border-red-500 focus:ring-2 focus:ring-red-500/20"
-      >
-        {options.map((option) => (
-          <option
-            key={option.value}
-            value={option.value}
-          >
-            {option.label}
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        {showStatusDot && (
+          <span
+            aria-hidden="true"
+            className={[
+              "pointer-events-none absolute left-4 top-1/2 h-2.5 w-2.5",
+              "-translate-y-1/2 rounded-full",
+              getManualGradeDotClass(value),
+            ].join(" ")}
+          />
+        )}
+        <select
+          id={id}
+          value={value}
+          onChange={(event) =>
+            onChange(event.target.value)
+          }
+          className={[
+            "h-11 w-full appearance-none rounded-lg border border-slate-200",
+            "bg-white pr-10 text-sm font-semibold text-slate-900 outline-none",
+            "transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100",
+            showStatusDot ? "pl-9" : "pl-3",
+          ].join(" ")}
+        >
+          {options.map((option) => (
+            <option
+              key={option.value}
+              value={option.value}
+            >
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-lg leading-none text-slate-300"
+        >
+          ⌄
+        </span>
+      </div>
     </div>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.9"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1a1.7 1.7 0 0 0 1.9.3A1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" />
+    </svg>
   );
 }
 
@@ -1543,6 +1598,21 @@ function getGradeOption(
         option.value === grade,
     ) ?? gradeOptions[1]
   );
+}
+
+function getManualGradeDotClass(value: string) {
+  switch (value) {
+    case "urgent":
+      return "bg-red-500";
+    case "caution":
+      return "bg-orange-500";
+    case "observe":
+      return "bg-yellow-400";
+    case "normal":
+      return "bg-emerald-500";
+    default:
+      return "bg-slate-300";
+  }
 }
 
 function formatDate(date: Date) {

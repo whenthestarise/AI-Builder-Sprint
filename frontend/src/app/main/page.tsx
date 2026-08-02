@@ -1,6 +1,10 @@
 import { getDashboardViewModel } from "@/mvc/controllers/adminController";
 import { DashboardView } from "@/mvc/views/DashboardView";
 
-export default function MainPage() {
-  return <DashboardView {...getDashboardViewModel()} />;
+export const dynamic = "force-dynamic";
+
+export default async function MainPage() {
+  const viewModel = await getDashboardViewModel();
+
+  return <DashboardView {...viewModel} />;
 }

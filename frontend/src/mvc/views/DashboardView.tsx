@@ -32,21 +32,39 @@ type StatIconType =
   | "document"
   | "alert";
 
+type DashboardFilter = "all" | "waiting" | "applications";
+
 export function DashboardView({
   stats,
   pets,
   applications,
 }: DashboardViewProps) {
   const [searchKeyword, setSearchKeyword] = useState("");
+  const [activeFilter, setActiveFilter] =
+    useState<DashboardFilter>("all");
 
   const filteredPets = useMemo(() => {
     const keyword = searchKeyword.trim().toLowerCase();
-
-    if (!keyword) {
-      return pets;
-    }
+    const applicationPetIds = new Set(
+      applications.map((application) => String(application.petId)),
+    );
 
     return pets.filter((pet) => {
+      if (activeFilter === "waiting" && pet.status !== "available") {
+        return false;
+      }
+
+      if (
+        activeFilter === "applications" &&
+        !applicationPetIds.has(String(pet.id))
+      ) {
+        return false;
+      }
+
+      if (!keyword) {
+        return true;
+      }
+
       const searchableValues = [
         pet.name,
         pet.englishName,
@@ -58,7 +76,7 @@ export function DashboardView({
         value?.toLowerCase().includes(keyword),
       );
     });
-  }, [pets, searchKeyword]);
+  }, [activeFilter, applications, pets, searchKeyword]);
 
   return (
     <AdminShell>
@@ -77,6 +95,8 @@ export function DashboardView({
               unit="마리"
               tone="slate"
               icon="shield"
+              active={activeFilter === "all"}
+              onClick={() => setActiveFilter("all")}
             />
 
             <StatCard
@@ -85,6 +105,8 @@ export function DashboardView({
               unit="마리"
               tone="blue"
               icon="clock"
+              active={activeFilter === "waiting"}
+              onClick={() => setActiveFilter("waiting")}
             />
 
             <StatCard
@@ -94,6 +116,8 @@ export function DashboardView({
               description="매칭 대기 중"
               tone="orange"
               icon="document"
+              active={activeFilter === "applications"}
+              onClick={() => setActiveFilter("applications")}
             />
 
             <StatCard
@@ -173,6 +197,8 @@ function StatCard({
   tone,
   icon,
   href,
+  active = false,
+  onClick,
 }: {
   label: string;
   value: number;
@@ -181,6 +207,8 @@ function StatCard({
   tone: StatTone;
   icon: StatIconType;
   href?: string;
+  active?: boolean;
+  onClick?: () => void;
 }) {
   const style = {
     slate: {
@@ -214,8 +242,9 @@ function StatCard({
       className={[
         "flex min-h-[104px] items-center gap-4 rounded-xl border bg-white",
         "px-5 py-4 transition-shadow",
-        style.border,
+        active ? "border-blue-500 ring-2 ring-blue-100" : style.border,
         href ? "hover:shadow-md" : "",
+        onClick ? "cursor-pointer hover:shadow-md" : "",
       ].join(" ")}
     >
       <span
@@ -262,6 +291,19 @@ function StatCard({
   );
 
   if (!href) {
+    if (onClick) {
+      return (
+        <button
+          type="button"
+          onClick={onClick}
+          aria-pressed={active}
+          className="block w-full text-left"
+        >
+          {content}
+        </button>
+      );
+    }
+
     return content;
   }
 
