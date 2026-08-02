@@ -44,7 +44,7 @@ export async function getDashboardViewModel() {
     ["/api/manage"],
     "manage list",
   );
-  const pets = await attachAiSummariesToPets(
+  const pets = await attachAiClausesToPets(
     manageData.pets,
     manageData.applications,
   );
@@ -187,7 +187,7 @@ function normalizePet(pet: Pet): Pet {
   };
 }
 
-async function attachAiSummariesToPets(
+async function attachAiClausesToPets(
   pets: Pet[],
   applications: AdoptionApplication[],
 ) {
@@ -209,7 +209,10 @@ async function attachAiSummariesToPets(
 
       return {
         ...normalizedPet,
-        note: preview.ai_summary,
+        note:
+          preview.custom_clauses
+            .map((clause, index) => `${index + 1}. ${clause}`)
+            .join("\n") || normalizedPet.note,
       };
     }),
   );
@@ -222,6 +225,8 @@ function generateContractPreview(
   return postBackendJson<
     ContractPreviewResponse,
     {
+      pet_id: string;
+      application_id: string;
       pet_info: {
         name: string;
         age: string;
@@ -236,6 +241,8 @@ function generateContractPreview(
       };
     }
   >("/api/ai/contract-preview", {
+    pet_id: pet.id,
+    application_id: applicant.id,
     pet_info: {
       name: pet.name,
       age: pet.age,

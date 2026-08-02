@@ -108,6 +108,16 @@ def initialize_database() -> None:
                 FOREIGN KEY (contract_id) REFERENCES contracts(contract_id),
                 UNIQUE (contract_id, round)
             );
+
+            CREATE TABLE IF NOT EXISTS ai_contract_previews (
+                cache_key TEXT PRIMARY KEY,
+                pet_id TEXT,
+                application_id TEXT,
+                request_hash TEXT NOT NULL,
+                ai_summary TEXT NOT NULL,
+                custom_clauses_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            );
             """
         )
 
