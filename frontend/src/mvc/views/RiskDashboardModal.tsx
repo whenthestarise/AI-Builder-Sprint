@@ -359,7 +359,7 @@ export function RiskDashboardModal({
     );
   };
 
-  const handleCertificationApprove = (
+  const handleCertificationApprove = async (
     result: CertificationReviewResult,
   ) => {
     if (!selectedCertificationId) {
@@ -370,6 +370,15 @@ export function RiskDashboardModal({
       new Date(),
     );
     const approvedStatus = `\uC2B9\uC778\uC644\uB8CC (${approvalDate})`;
+
+    await persistCertificationApproval(
+      contract.id,
+      selectedCertificationId,
+      approvedStatus,
+      result.actions,
+      result.comment,
+      result.imageDataUrl,
+    );
 
     setLocalCertificationCards(
       (previousCards) =>
@@ -396,14 +405,6 @@ export function RiskDashboardModal({
       contract.id,
       selectedCertificationId,
       approvedStatus,
-    );
-
-    void persistCertificationApproval(
-      contract.id,
-      selectedCertificationId,
-      approvedStatus,
-      result.actions,
-      result.comment,
     );
 
     setSelectedCertificationId(null);
@@ -495,7 +496,7 @@ export function RiskDashboardModal({
                   <ContractInfoRow
                     label="특약 약정"
                     value={
-                      <span className="font-bold text-orange-600">
+                      <span className="font-normal text-orange-600">
                         {
                           dashboardData.behaviorTrait
                         }
@@ -535,15 +536,6 @@ export function RiskDashboardModal({
                   </p>
                 )}
 
-                <button
-                  type="button"
-                  onClick={() =>
-                    setIsStatusModalOpen(true)
-                  }
-                  className="mt-3 inline-flex h-8 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 text-[11px] font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-900"
-                >
-                  상태 수동 변경
-                </button>
               </section>
             </aside>
 
@@ -1474,10 +1466,10 @@ function ContractInfoRow({
 }) {
   return (
     <div className="grid grid-cols-[100px_1fr] items-start gap-3">
-      <dt className="text-xs font-medium text-slate-500">
+      <dt className="text-xs font-normal text-slate-500">
         {label}
       </dt>
-      <dd className="break-words text-right text-sm font-extrabold text-slate-950">
+      <dd className="break-words text-right text-sm font-normal text-slate-950">
         {value}
       </dd>
     </div>
@@ -1633,9 +1625,9 @@ async function persistCertificationApproval(
   approvedStatus: string,
   managerActions: string[] = [],
   managerComment: string = "",
+  imageDataUrl: string = "",
 ) {
-  try {
-    const response = await fetch(
+  const response = await fetch(
       `${getBackendBaseUrl()}/api/risk/contracts/${encodeURIComponent(
         contractId,
       )}/certifications/${encodeURIComponent(certificationId)}/approve`,
@@ -1648,17 +1640,15 @@ async function persistCertificationApproval(
           approvedStatus,
           managerActions,
           managerComment,
+          imageDataUrl: imageDataUrl || null,
         }),
       },
-    );
+  );
 
-    if (!response.ok) {
-      throw new Error(
-        "Risk approval API request failed.",
-      );
-    }
-  } catch (error) {
-    console.error(error);
+  if (!response.ok) {
+    throw new Error(
+      "Risk approval API request failed.",
+    );
   }
 }
 

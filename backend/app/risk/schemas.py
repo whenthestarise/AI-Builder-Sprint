@@ -119,3 +119,7 @@ class CertificationReviewRequest(BaseModel):
         default=None,
         max_length=500,
     )
+    imageDataUrl: str | None = Field(
+        default=None,
+        max_length=4_500_000,
+    )

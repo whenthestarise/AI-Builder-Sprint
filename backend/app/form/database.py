@@ -92,6 +92,7 @@ def initialize_database() -> None:
                 contract_id TEXT PRIMARY KEY,
                 pet_id TEXT NOT NULL,
                 adopter_name TEXT NOT NULL,
+                applicant_phone TEXT,
                 status TEXT NOT NULL,
                 signed_at TEXT NOT NULL,
                 created_at TEXT NOT NULL,
@@ -152,6 +153,18 @@ def initialize_database() -> None:
             "reviewed_at",
             "TEXT",
         )
+        ensure_column(
+            connection,
+            "contracts",
+            "applicant_phone",
+            "TEXT",
+        )
+        ensure_column(
+            connection,
+            "certification_submissions",
+            "manager_image_data_url",
+            "TEXT",
+        )
 
         ensure_column(
             connection,
@@ -169,6 +182,12 @@ def initialize_database() -> None:
             connection,
             "missing_certifications",
             "reviewed_at",
+            "TEXT",
+        )
+        ensure_column(
+            connection,
+            "missing_certifications",
+            "manager_image_data_url",
             "TEXT",
         )
         ensure_column(
