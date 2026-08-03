@@ -290,7 +290,18 @@ RAG: ChromaDB
 .\venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
----
+### 시연 접속 주소
+
+> 현재 해커톤 시연용으로 운영 중인 주소입니다.  
+> 백엔드 PC와 Uvicorn 서버가 실행 중일 때 접속할 수 있습니다.
+
+| 구분 | 주소 |
+| --- | --- |
+| Frontend | `http://3.39.239.255` |
+| Backend API | `http://113.131.34.14:8000` |
+| Backend Health Check | `http://113.131.34.14:8000/health` |
+| Backend Swagger API Docs | `http://113.131.34.14:8000/docs` |
+| GitHub Repository | `https://github.com/whenthestarise/AI-Builder-Sprint` |
 
 ## 8. 환경변수 정보
 
