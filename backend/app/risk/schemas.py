@@ -10,6 +10,7 @@ ManualGrade = Literal["urgent", "caution", "observe", "normal"]
 
 class Contract(BaseModel):
     id: str
+    petId: str | None = None
     petName: str
     adopterName: str
     applicantPhone: str | None = None
@@ -21,6 +22,7 @@ class Contract(BaseModel):
     adoptionDate: str | None = None
     lastCertificationDate: str | None = None
     certificationRound: int | None = None
+    petImageUrl: str | None = None
 
 
 class TimelineEvent(BaseModel):
@@ -37,6 +39,7 @@ class RiskDashboardData(BaseModel):
     headerDotClass: str
     behaviorTrait: str
     signedDate: str
+    lastCertificationDate: str | None = None
     manualGrade: str | None = None
     manualCategory: str | None = None
     manualReason: str | None = None

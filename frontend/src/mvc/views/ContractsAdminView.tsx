@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
@@ -9,7 +9,6 @@ import type {
   Pet,
 } from "@/mvc/models/adminModel";
 import { AdminShell } from "@/mvc/views/AdminShell";
-import { getBackendApiBaseUrl } from "@/mvc/services/adminApi";
 
 type ModusignDocument = {
   id: string;
@@ -20,9 +19,6 @@ const MODUSIGN_TEST_PHONE = "010-2422-4599";
 
 /* ==============================
  * 계약 화면 확장 데이터
- *
- * 기존 Contract 타입은 유지하고,
- * 계약 화면에서 사용할 값을 선택 필드로 확장합니다.
  * ============================== */
 
 type ContractViewModel = Contract & {
@@ -81,7 +77,7 @@ export function ContractsAdminView({
 
   const aiGuide =
     contract.aiGuide ??
-    `동물의 ${primaryTrait} 특성과 신청자의 ${applicant.home} 환경을 조합하여 분쟁을 예방하고 책임감을 높이는 맞춤형 특약이 생성되었습니다.`;
+    `동물의 ${primaryTrait} 특성과 신청자의 ${applicant.home} 환경을 조합하여 분양 안정성과 책임감을 높이는 맞춤형 특약을 생성했습니다.`;
 
   const fullTerms =
     contract.fullTerms ??
@@ -103,6 +99,7 @@ export function ContractsAdminView({
       });
       const response = await fetch("/api/modusign/request-signature", {
         method: "POST",
+        cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: `책임 입양 계약서_${pet.name}_${applicant.applicant}`,
@@ -112,7 +109,7 @@ export function ContractsAdminView({
               name: applicant.applicant,
               signingMethod: {
                 type: "KAKAO",
-                value: MODUSIGN_TEST_PHONE.replace(/\D/g, ""),
+                value: getSignaturePhone(applicant).replace(/\D/g, ""),
               },
               locale: "ko",
             },
@@ -165,7 +162,7 @@ export function ContractsAdminView({
                 href="/main"
                 className="text-slate-500 transition-colors hover:text-slate-900"
               >
-                대시보드 홈
+                대시보드
               </Link>
 
               <span className="text-slate-300">&gt;</span>
@@ -342,7 +339,7 @@ export function ContractsAdminView({
                       />
 
                       <span className="text-sm font-semibold leading-6 text-slate-800">
-                        위 기본 약관 및 AI 맞춤 특약을 확인했으며, 모두싸인으로
+                        위 기본 약관 및 AI 맞춤 특약을 확인했으며 모두싸인으로
                         입양자에게 전자서명을 발송합니다.
                       </span>
                     </label>
@@ -354,7 +351,7 @@ export function ContractsAdminView({
                           onClick={() =>
                             setIsSignatureModalOpen(true)
                           }
-                          aria-label={`${dataLabels.length}개의 계약 데이터 라벨을 사용하여 전자서명 진행`}
+                          aria-label={`${dataLabels.length}개의 계약 데이터를 사용하여 전자서명 진행`}
                           className={[
                             "flex h-12 w-full items-center justify-center gap-2",
                             "rounded-lg bg-blue-600 px-6",
@@ -438,7 +435,7 @@ function buildModusignInputMappings({
     phone: "010-0000-0000",
     emergencyPhone: "010-0000-0001",
     email: "contract@pawmise.example",
-    address: "부산광역시 금정구 펫케어로 123",
+    address: "부산광역시 금정구 센텀대로 123",
     registrationNumber: "000-00-00000",
   };
   const mappings = new Map<string, string>();
@@ -469,8 +466,8 @@ function buildModusignInputMappings({
       "구조자 성명",
       "원보호자명",
       "원보호자 성명",
-      "구조자/원보호자",
-      "구조자/원보호자 성명",
+      "구조자 원보호자",
+      "구조자 원보호자 성명",
     ],
     mockOriginalOwner.name,
   );
@@ -480,7 +477,7 @@ function buildModusignInputMappings({
       "originalOwnerAddress",
       "구조자 주소",
       "원보호자 주소",
-      "구조자/원보호자 주소",
+      "구조자 원보호자 주소",
     ],
     mockOriginalOwner.address,
   );
@@ -510,7 +507,7 @@ function buildModusignInputMappings({
       "originalOwnerRepresentative",
       "구조자 대표자",
       "원보호자 대표자",
-      "구조자/원보호자 대표자",
+      "구조자 원보호자 대표자",
     ],
     mockOriginalOwner.representative,
   );
@@ -520,7 +517,7 @@ function buildModusignInputMappings({
       "originalOwnerPhone",
       "구조자 연락처",
       "원보호자 연락처",
-      "구조자/원보호자 연락처",
+      "구조자 원보호자 연락처",
       "보호소 연락처",
     ],
     mockOriginalOwner.phone,
@@ -531,7 +528,7 @@ function buildModusignInputMappings({
       "originalOwnerEmergencyPhone",
       "구조자 비상연락처",
       "원보호자 비상연락처",
-      "구조자/원보호자 비상연락처",
+      "구조자 원보호자 비상연락처",
     ],
     mockOriginalOwner.emergencyPhone,
   );
@@ -541,7 +538,7 @@ function buildModusignInputMappings({
       "originalOwnerEmail",
       "구조자 이메일",
       "원보호자 이메일",
-      "구조자/원보호자 이메일",
+      "구조자 원보호자 이메일",
       "보호소 이메일",
     ],
     mockOriginalOwner.email,
@@ -552,7 +549,7 @@ function buildModusignInputMappings({
       "originalOwnerRegistrationNumber",
       "구조자 등록번호",
       "원보호자 등록번호",
-      "구조자/원보호자 등록번호",
+      "구조자 원보호자 등록번호",
       "사업자등록번호",
     ],
     mockOriginalOwner.registrationNumber,
@@ -561,11 +558,11 @@ function buildModusignInputMappings({
     ["adopterName", "입양자", "입양자명", "입양자 성명", "신청자명", "이름"],
     applicant.applicant,
   );
-  add(["phone", "연락처", "전화번호", "입양자연락처"], applicant.phone);
-  add(["주민등록번호"], "000000-0000000");
+  add(["phone", "연락처", "전화번호", "입양자연락처"], getSignaturePhone(applicant));
+  add(["二쇰??깅줉踰덊샇"], "000000-0000000");
   add(["비상연락처"], mockOriginalOwner.emergencyPhone);
-  add(["후원비(문자)"], "금 영 원정");
-  add(["후원비(숫자)"], "0");
+  add(["입양비 문자"], "기부금 예정");
+  add(["입양비 숫자"], "0");
   add(["email", "이메일", "SNS / 이메일", "입양자이메일"], applicant.email);
   add(["housingType", "주거형태", "주거환경", "주소"], applicant.home);
   add(["petExperience", "양육경험", "반려동물경험"], applicant.experience);
@@ -585,7 +582,7 @@ function buildModusignInputMappings({
 }
 
 /* ==============================
- * 정보 그룹
+ * ?뺣낫 洹몃９
  * ============================== */
 
 function ContractSignatureModal({
@@ -615,9 +612,9 @@ function ContractSignatureModal({
     baseClauses.length > 0
       ? baseClauses.slice(0, 3)
       : [
-          "유기·파양 절대 금지 및 원보호소 반환 의무",
+          "임의 양도·유기 금지 및 보호소 반환 의무",
           "정기 사후관리 모니터링 협조 의무",
-          "동물등록 완수 및 적정 사육 환경 보장",
+          "동물등록 필수 및 적정 사육 환경 보장",
         ];
   const customClauses = splitSpecialClause(
     specialClause,
@@ -747,7 +744,7 @@ function ContractSignatureModal({
         >
           {isSending
             ? "모두싸인 문서 생성 중..."
-            : "위 약관에 동의하며 모두싸인으로 전자서명 발송하기"}
+            : "약관에 동의하며 모두싸인으로 전자서명 발송하기"}
         </button>
         {error && (
           <p className="mt-3 text-center text-sm font-semibold text-red-600">
@@ -870,7 +867,7 @@ function SignatureSentModal({
         <dl className="mt-7 space-y-5 rounded-xl border border-slate-200 bg-slate-50 px-5 py-6 text-sm sm:px-6">
           <SentInfoRow
             label="수신"
-            value={`${applicant.applicant} (${MODUSIGN_TEST_PHONE})`}
+            value={`${applicant.applicant} (${getSignaturePhone(applicant)})`}
           />
           <SentInfoRow
             label="문서"
@@ -897,7 +894,7 @@ function SignatureSentModal({
           disabled={isChecking}
           className="mt-6 flex h-14 w-full items-center justify-center rounded-lg bg-blue-600 text-lg font-extrabold text-white shadow-sm transition hover:bg-blue-700 disabled:cursor-wait disabled:bg-blue-300"
         >
-          {isChecking ? "서명 상태 확인 중..." : "서명완료"}
+          {isChecking ? "서명 상태 확인 중..." : "서명 완료"}
         </button>
       </section>
     </div>
@@ -913,21 +910,19 @@ async function finalizeSignedContract({
   pet: Pet;
   applicant: AdoptionApplication;
 }) {
-  const response = await fetch(
-    `${getBackendApiBaseUrl()}/api/contracts/sign-complete`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contractId,
-        petId: pet.id,
-        petName: pet.name,
-        adopterName: applicant.applicant,
-        applicantPhone: applicant.phone,
-        signedAt: new Date().toISOString(),
-      }),
-    },
-  );
+  const response = await fetch("/api/contracts/sign-complete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      contractId,
+      petId: pet.id,
+      petName: pet.name,
+      adopterName: applicant.applicant,
+      applicantPhone: getSignaturePhone(applicant),
+      signedAt: new Date().toISOString(),
+    }),
+    cache: "no-store",
+  });
 
   if (!response.ok) {
     const result = (await response.json().catch(() => null)) as {
@@ -935,6 +930,14 @@ async function finalizeSignedContract({
     } | null;
     throw new Error(result?.detail || "계약 완료 처리에 실패했습니다.");
   }
+}
+
+function getSignaturePhone(applicant: AdoptionApplication) {
+  if (applicant.applicant === "김민수") {
+    return MODUSIGN_TEST_PHONE;
+  }
+
+  return applicant.phone || MODUSIGN_TEST_PHONE;
 }
 
 function ContractCompletedModal({
@@ -955,16 +958,16 @@ function ContractCompletedModal({
     >
       <section className="w-full max-w-[604px] rounded-[22px] bg-white px-7 py-10 shadow-2xl sm:px-9">
         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-3xl">
-          🎉
+          완료
         </div>
         <h2
           id="contract-completed-modal-title"
           className="mt-5 text-center text-2xl font-extrabold text-slate-950"
         >
-          책임 입양 계약 완결!
+          책임 입양 계약 체결!
         </h2>
         <p className="mt-3 text-center text-sm font-medium text-slate-500">
-          {applicant.applicant} 님과 {pet.name}의 입양 계약이 법적 효력을 갖추었습니다.
+          {applicant.applicant} 님과 {pet.name}의 입양 계약이 법적 효력을 갖췄습니다.
         </p>
 
         <div className="mt-7 space-y-5 rounded-xl border border-slate-200 bg-slate-50 px-6 py-6 text-sm font-bold text-slate-900">
@@ -975,7 +978,7 @@ function ContractCompletedModal({
             CLM 설정 : 주기별 알림 스케줄러 등록
           </CompletionItem>
           <CompletionItem icon={<AgentIcon />}>
-            AI 에이전트 : 모니터링 리스크 대시보드 연동
+            AI 에이전트 : 모니터링 리스트 대시보드 연동
           </CompletionItem>
         </div>
 
@@ -991,7 +994,7 @@ function ContractCompletedModal({
             href="/risk"
             className="flex h-14 items-center justify-center rounded-lg bg-blue-600 text-lg font-extrabold text-white transition hover:bg-blue-700"
           >
-            입양관리로 이동 →
+            입양관리로 이동
           </Link>
         </div>
       </section>
@@ -1064,7 +1067,7 @@ function getClauseDescription(index: number) {
     "키우지 못할 사정 발생 시 임의 양도·유기 금지, 보호소 반환 필수",
     "사전 조율된 주기에 따라 아이의 근황 및 환경 사진 제출 필수",
     "실내 안전 보호 의무 및 법정 동물등록 진행 필수",
-  ][index] ?? "입양 계약상 필수 의무를 성실히 이행합니다.";
+  ][index] ?? "입양 계약의 필수 의무를 성실히 이행합니다.";
 }
 
 function InfoGroup({ children }: { children: ReactNode }) {
@@ -1076,7 +1079,7 @@ function InfoGroup({ children }: { children: ReactNode }) {
 }
 
 /* ==============================
- * 정보 행
+ * ?뺣낫 ??
  * ============================== */
 
 function InfoRow({

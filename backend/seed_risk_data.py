@@ -100,6 +100,8 @@ def seed():
     # Clear existing data
     connection.execute("DELETE FROM certification_submissions")
     connection.execute("DELETE FROM missing_certifications")
+    delete_table_if_exists(connection, "monitoring_schedules")
+    delete_table_if_exists(connection, "contracts")
     connection.execute("DELETE FROM pets")
     connection.commit()
 
@@ -279,6 +281,15 @@ def seed():
     connection.commit()
     connection.close()
     print("Database seeded successfully with 4 pets and full certification histories.")
+
+
+def delete_table_if_exists(connection, table_name):
+    table = connection.execute(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table_name,),
+    ).fetchone()
+    if table:
+        connection.execute(f"DELETE FROM {table_name}")
 
 
 if __name__ == "__main__":

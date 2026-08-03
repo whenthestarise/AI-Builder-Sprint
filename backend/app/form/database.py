@@ -161,6 +161,12 @@ def initialize_database() -> None:
         )
         ensure_column(
             connection,
+            "pets",
+            "image_url",
+            "TEXT",
+        )
+        ensure_column(
+            connection,
             "certification_submissions",
             "manager_image_data_url",
             "TEXT",

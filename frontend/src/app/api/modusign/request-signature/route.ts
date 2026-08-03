@@ -39,6 +39,18 @@ function isValidRequestBody(body: unknown): body is RequestSignatureBody {
   );
 }
 
+function createFreshDocumentTitle(title: string) {
+  const requestStamp = new Date()
+    .toISOString()
+    .replace(/\D/g, "")
+    .slice(0, 14);
+  const suffix = `-${requestStamp}`;
+  const normalizedTitle = title.trim();
+  const maxBaseLength = 100 - suffix.length;
+
+  return `${normalizedTitle.slice(0, maxBaseLength)}${suffix}`;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body: unknown = await request.json();
@@ -107,10 +119,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const requestId = crypto.randomUUID();
     const payload: ModusignTemplateRequest = {
       templateId,
       document: {
-        title: body.title.trim(),
+        title: createFreshDocumentTitle(body.title),
         participantMappings: participants,
         requesterInputMappings: (body.inputMappings ?? []).filter(
           (mapping) =>
@@ -119,6 +132,10 @@ export async function POST(request: NextRequest) {
             ) ?? false,
         ),
         requesterAttachmentMappings: body.attachmentMappings ?? [],
+        metadatas: [
+          { key: "requestId", value: requestId },
+          { key: "sourceTitle", value: body.title.trim().slice(0, 255) },
+        ],
       },
     };
 
@@ -126,8 +143,9 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       {
-        message: "서명 요청을 전송했습니다.",
+        message: "서명 요청이 전송되었습니다.",
         document,
+        requestId,
       },
       { status: 201 },
     );
@@ -188,7 +206,7 @@ function getModusignErrorMessage(status: number): string {
     case 404:
       return "모두싸인 템플릿을 찾을 수 없습니다.";
     case 422:
-      return "요청 데이터가 유효하지 않습니다. 템플릿 역할명, 연락처, 데이터 라벨을 확인하세요.";
+      return "요청 데이터가 유효하지 않습니다. 템플릿 역할명, 연락처, 데이터를 확인하세요.";
     case 429:
       return "모두싸인 API 호출 한도를 초과했습니다.";
     default:

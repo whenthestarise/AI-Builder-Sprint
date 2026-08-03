@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600" role="img" aria-label="기본 반려동물 사진">
+  <defs>
+    <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f5fbff"/>
+      <stop offset="0.55" stop-color="#eaf5ee"/>
+      <stop offset="1" stop-color="#f8efe0"/>
+    </linearGradient>
+    <linearGradient id="fur" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#f8d8a8"/>
+      <stop offset="1" stop-color="#c98645"/>
+    </linearGradient>
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="20" stdDeviation="18" flood-color="#47606b" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+  <rect width="900" height="600" fill="url(#sky)"/>
+  <circle cx="190" cy="125" r="74" fill="#fff6d8" opacity="0.85"/>
+  <path d="M0 452c112-46 192-44 305-8 97 31 177 38 285 1 118-41 215-31 310 16v139H0z" fill="#b8d7b5"/>
+  <path d="M0 500c135-41 258-33 366-2 115 33 259 29 534-23v125H0z" fill="#8fc48d"/>
+  <g filter="url(#softShadow)">
+    <ellipse cx="474" cy="478" rx="190" ry="42" fill="#587d60" opacity="0.25"/>
+    <path d="M318 344c-35-67-6-147 72-178 83-34 177 9 208 87 15 38 15 80 3 116 33 11 56 42 56 79 0 46-37 83-83 83H356c-52 0-94-42-94-94 0-42 23-77 56-93z" fill="url(#fur)"/>
+    <path d="M327 249c-33-75-21-126 23-161 31 29 46 71 40 117z" fill="#b66f35"/>
+    <path d="M548 205c5-55 31-94 76-113 28 45 25 94-13 153z" fill="#b66f35"/>
+    <path d="M368 264c-23-43-15-93 21-122 27 22 42 58 38 99z" fill="#f5c995" opacity="0.9"/>
+    <path d="M560 240c4-42 23-75 55-94 16 39 10 76-19 109z" fill="#f5c995" opacity="0.9"/>
+    <circle cx="432" cy="323" r="13" fill="#263238"/>
+    <circle cx="538" cy="323" r="13" fill="#263238"/>
+    <circle cx="437" cy="318" r="4" fill="#fff"/>
+    <circle cx="543" cy="318" r="4" fill="#fff"/>
+    <path d="M477 352c12-10 27-10 40 0-5 16-14 24-20 24s-15-8-20-24z" fill="#5b3827"/>
+    <path d="M497 375c-2 25-23 42-48 33" fill="none" stroke="#5b3827" stroke-width="7" stroke-linecap="round"/>
+    <path d="M497 375c3 26 25 42 50 31" fill="none" stroke="#5b3827" stroke-width="7" stroke-linecap="round"/>
+    <path d="M334 409c48 47 103 69 165 67 65-1 118-27 157-76 1 77-40 131-105 144H376c-57-17-87-61-85-111 1-19 17-32 43-24z" fill="#f7ead3" opacity="0.95"/>
+  </g>
+</svg>
