@@ -7,3 +7,4 @@ chroma_db/
 form.db
 *.db
 form.db.before-demo-*
+form.db-*
