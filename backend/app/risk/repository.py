@@ -1,4 +1,4 @@
-from collections import defaultdict
+﻿from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
@@ -76,6 +76,19 @@ ROUND_DAYS = {
     4: 90,
     5: 180,
     6: 365,
+}
+
+DEFAULT_CERTIFICATION_IMAGE_URL = "/default-animal-photo.svg"
+PET_IMAGE_URL_BY_ID = {
+    "DOG-2026-01": "/pet-main-1.png",
+    "DOG-2026-02": "/pet-main-2.png",
+    "DOG-2026-03": "/pet-main-3.png",
+    "DOG-2026-04": "/pet-main-4.png",
+    "DOG-2026-05": "/pet-main-5.png",
+    "PET-DEMO-CHOCO-001": "/pet-main-2.png",
+    "PET-DEMO-TOFU-001": "/pet-main-1.png",
+    "PET-DEMO-BORI-001": "/pet-main-4.png",
+    "PET-DEMO-KONGI-001": "/pet-main-3.png",
 }
 
 ANSWER_LABELS = {
@@ -319,11 +332,15 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 s.reviewed_at,
                 p.pet_name,
                 p.adopter_name,
-                p.adoption_date
+                p.adoption_date,
+                p.image_url,
+                c.applicant_phone
             FROM certification_submissions s
             JOIN pets p ON p.pet_id = s.pet_id
             LEFT JOIN monitoring_schedules ms
                 ON ms.schedule_id = s.schedule_id
+            LEFT JOIN contracts c
+                ON c.contract_id = ms.contract_id
             ORDER BY s.submitted_at DESC
             """
         ).fetchall()
@@ -346,11 +363,15 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 m.reviewed_at,
                 p.pet_name,
                 p.adopter_name,
-                p.adoption_date
+                p.adoption_date,
+                p.image_url,
+                c.applicant_phone
             FROM missing_certifications m
             JOIN pets p ON p.pet_id = m.pet_id
             LEFT JOIN monitoring_schedules ms
                 ON ms.schedule_id = m.schedule_id
+            LEFT JOIN contracts c
+                ON c.contract_id = ms.contract_id
             ORDER BY m.checked_at DESC
             """
         ).fetchall()
@@ -376,7 +397,10 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 "status_label": row["status_label"],
                 "answers": load_json(row["answers_json"]),
                 "body_symptoms": load_json(row["body_symptoms_json"]),
-                "text_inputs": load_json(row["text_inputs_json"]),
+                "text_inputs": with_applicant_phone(
+                    load_json(row["text_inputs_json"]),
+                    row["applicant_phone"],
+                ),
                 "files": load_json(row["files_json"]),
                 "manager_actions": load_json(row["manager_actions_json"]) if row["manager_actions_json"] else [],
                 "manager_comment": row["manager_comment"] or "",
@@ -388,6 +412,7 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 "pet_name": row["pet_name"],
                 "adopter_name": row["adopter_name"],
                 "adoption_date": row["adoption_date"],
+                "pet_image_url": pet_image_url(row["pet_id"], row["image_url"]),
             }
         )
 
@@ -409,7 +434,10 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 "status_label": row["status_label"],
                 "answers": {},
                 "body_symptoms": [],
-                "text_inputs": {},
+                "text_inputs": with_applicant_phone(
+                    {},
+                    row["applicant_phone"],
+                ),
                 "files": [],
                 "manager_actions": load_json(row["manager_actions_json"]),
                 "manager_comment": row["manager_comment"],
@@ -418,6 +446,7 @@ def get_form_risk_records() -> dict[str, list[dict[str, Any]]]:
                 "pet_name": row["pet_name"],
                 "adopter_name": row["adopter_name"],
                 "adoption_date": row["adoption_date"],
+                "pet_image_url": pet_image_url(row["pet_id"], row["image_url"]),
             }
         )
 
@@ -448,29 +477,30 @@ def build_contracts(records: dict[str, list[dict[str, Any]]]) -> list[Contract]:
         for contract_id, contract_records in records.items()
         if contract_records
     ]
-    existing_ids = {contract.id for contract in contracts}
+    existing_contract_ids = {contract.id for contract in contracts}
 
     with get_connection() as connection:
-        signed_contracts = connection.execute(
+        signed_rows = connection.execute(
             """
             SELECT
                 c.contract_id,
                 c.pet_id,
                 c.adopter_name,
                 c.applicant_phone,
-                c.status,
                 c.signed_at,
-                p.pet_name
+                p.pet_name,
+                p.image_url
             FROM contracts c
             JOIN pets p ON p.pet_id = c.pet_id
+            WHERE c.status = 'SIGNED'
             ORDER BY c.signed_at DESC
             """
         ).fetchall()
 
     contracts.extend(
         contract_from_signed_row(row)
-        for row in signed_contracts
-        if row["contract_id"] not in existing_ids
+        for row in signed_rows
+        if row["contract_id"] not in existing_contract_ids
     )
     contracts.sort(key=lambda contract: contract.signedAt, reverse=True)
     return contracts
@@ -486,6 +516,7 @@ def contract_from_signed_row(row) -> Contract:
 
     return Contract(
         id=row["contract_id"],
+        petId=row["pet_id"],
         petName=row["pet_name"],
         adopterName=row["adopter_name"] or "입양자 미입력",
         applicantPhone=row["applicant_phone"],
@@ -497,12 +528,13 @@ def contract_from_signed_row(row) -> Contract:
         adoptionDate=signed_label,
         lastCertificationDate=None,
         certificationRound=0,
+        petImageUrl=pet_image_url(row["pet_id"], row["image_url"]),
     )
 
 
 def contract_from_records(contract_id: str, records: list[dict[str, Any]]) -> Contract:
     latest = records[0]
-    latest_risk = latest["final_risk"]
+    highest_risk = highest_record_risk(records)
     latest_event_at = latest["event_at"]
     adoption_date = latest["adoption_date"]
     try:
@@ -515,23 +547,44 @@ def contract_from_records(contract_id: str, records: list[dict[str, Any]]) -> Co
 
     return Contract(
         id=contract_id,
+        petId=latest["pet_id"],
         petName=latest["pet_name"],
         adopterName=latest["adopter_name"] or "\uC785\uC591\uC790 \uBBF8\uC785\uB825",
         applicantPhone=phone_from_records(records),
         status=status_for_record(latest),
         signedAt=adoption_date,
         nextCheck=next_check_label(latest),
-        risk=FORM_RISK_TO_CONTRACT_RISK.get(latest_risk, "warning"),
+        risk=FORM_RISK_TO_CONTRACT_RISK.get(highest_risk, "warning"),
         petType=pet_type_from_text(latest["text_inputs"]),
         adoptionDate=adoption_date,
         lastCertificationDate=last_certification_label(latest),
         certificationRound=latest["round"],
+        petImageUrl=latest["pet_image_url"],
+    )
+
+
+def highest_record_risk(records: list[dict[str, Any]]) -> str:
+    risk_order = {
+        "green": 0,
+        "yellow": 1,
+        "orange": 2,
+        "red": 3,
+    }
+
+    return max(
+        (record["final_risk"] for record in records),
+        key=lambda risk: risk_order.get(risk, 0),
+        default="green",
     )
 
 
 def status_for_record(record: dict[str, Any]) -> str:
     if record["kind"] == "missing":
         return record["status_label"]
+
+
+    if "승인완료" in record["approval_status"]:
+        return record["approval_status"]
 
     if record["approval_status"] == "APPROVED":
         return "승인완료"
@@ -560,9 +613,27 @@ def last_certification_label(record: dict[str, Any]) -> str:
 
     date_label = format_date(event_at)
     if record["kind"] == "missing":
-        return f"{date_label} {record['status_label']}"
+        delayed_days = days_between(event_at, datetime.utcnow())
+        return f"{date_label} ({delayed_days}??吏??"
 
-    return f"{date_label} ({round_day_label(record['round'])})"
+    elapsed_days = days_between(
+        load_datetime(record["adoption_date"]),
+        event_at,
+    )
+    return f"{date_label} (D+{elapsed_days})"
+
+
+def days_between(
+    start_at: datetime | None,
+    end_at: datetime | None,
+) -> int:
+    if not start_at or not end_at:
+        return 0
+
+    return max(
+        (end_at.date() - start_at.date()).days,
+        0,
+    )
 
 
 def build_timeline_events(
@@ -635,7 +706,12 @@ def get_dashboard_data(
         headerBadgeClass=badge_class,
         headerDotClass=dot_class,
         behaviorTrait=behavior_trait_from_record(latest_record),
-        signedDate=contract.signedAt,
+        signedDate=format_date_label(contract.signedAt),
+        lastCertificationDate=(
+            last_certification_label(latest_record)
+            if latest_record
+            else None
+        ),
         manualGrade=latest_record.get("manual_grade") or None if latest_record else None,
         manualCategory=latest_record.get("manual_category") or None if latest_record else None,
         manualReason=latest_record.get("manual_reason") or None if latest_record else None,
@@ -676,9 +752,9 @@ def get_upcoming_timeline(
     if not next_schedule:
         return RiskUpcomingTimeline(
             label="Upcoming Timeline",
-            title="정기 안부 인증 완료",
-            description="입양 후 1년 동안의 정기 안부 인증이 완료되었습니다.",
-            buttonLabel="완료",
+            title="?뺢린 ?덈? ?몄쬆 ?꾨즺",
+            description="?낆뼇 ??1???숈븞???뺢린 ?덈? ?몄쬆???꾨즺?섏뿀?듬땲??",
+            buttonLabel="?꾨즺",
         )
 
     next_round, scheduled_at = next_schedule
@@ -706,7 +782,11 @@ def certification_card_from_record(
             status=record["approval_status"],
             submittedAt=format_datetime(record["event_at"]),
             roundLabel=round_label(record["round"]),
-            imageUrl=record["manager_image_data_url"] or None,
+            imageUrl=(
+                meaningful_image_url(record["manager_image_data_url"])
+                or record["pet_image_url"]
+                or DEFAULT_CERTIFICATION_IMAGE_URL
+            ),
             answers=[],
             managerActions=record["manager_actions"],
             managerComment=record["manager_comment"],
@@ -723,8 +803,10 @@ def certification_card_from_record(
         submittedAt=format_datetime(record["event_at"]),
         roundLabel=round_label(record["round"]),
         imageUrl=(
-            record["manager_image_data_url"]
+            meaningful_image_url(record["manager_image_data_url"])
             or image_url_from_files(record["files"])
+            or record["pet_image_url"]
+            or DEFAULT_CERTIFICATION_IMAGE_URL
         ),
         answers=answers_from_record(record),
         managerActions=record["manager_actions"],
@@ -763,9 +845,9 @@ def answers_from_record(record: dict[str, Any]) -> list[CertificationAnswer]:
     EXCLUDED_TEXT_KEYS = {"phone", "petType", "specialNote", "breed", "behaviorTrait"}
 
     TEXT_INPUT_LABELS = {
-        "medicalDelayReason": "의료 일정 연기 사유",
-        "bodyObserveDetail": "몸 상태 관찰 상세",
-        "currentWeight": "현재 체중 (kg)",
+        "medicalDelayReason": "?섎즺 ?쇱젙 ?곌린 ?ъ쑀",
+        "bodyObserveDetail": "紐??곹깭 愿李??곸꽭",
+        "currentWeight": "?꾩옱 泥댁쨷 (kg)",
     }
 
     for key, value in record["text_inputs"].items():
@@ -814,6 +896,23 @@ def image_url_from_files(files: list[dict[str, Any]]) -> str | None:
     return None
 
 
+def meaningful_image_url(image_url: str | None) -> str | None:
+    if not image_url or image_url == DEFAULT_CERTIFICATION_IMAGE_URL:
+        return None
+
+    return image_url
+
+
+def pet_image_url(
+    pet_id: str,
+    stored_image_url: str | None,
+) -> str:
+    return stored_image_url or PET_IMAGE_URL_BY_ID.get(
+        pet_id,
+        DEFAULT_CERTIFICATION_IMAGE_URL,
+    )
+
+
 def pet_type_from_text(text_inputs: dict[str, str]) -> str:
     return (
         text_inputs.get("petType")
@@ -838,6 +937,19 @@ def phone_from_records(records: list[dict[str, Any]]) -> str | None:
             return phone
 
     return None
+
+
+def with_applicant_phone(
+    text_inputs: dict[str, str],
+    applicant_phone: str | None,
+) -> dict[str, str]:
+    if not applicant_phone or text_inputs.get("phone"):
+        return text_inputs
+
+    return {
+        **text_inputs,
+        "phone": applicant_phone,
+    }
 
 
 def get_risk_config() -> RiskConfig:
@@ -904,6 +1016,15 @@ def format_date(value: datetime | None) -> str:
     return value.strftime("%Y.%m.%d") if value else ""
 
 
+def format_date_label(value: str) -> str:
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return value.replace("-", ".")
+
+    return format_date(parsed)
+
+
 def format_datetime(value: datetime | None) -> str:
     return value.strftime("%Y.%m.%d %H:%M") if value else None
 
@@ -921,12 +1042,6 @@ def round_label(round_number: int) -> str:
 
 
 def reset_seed_data() -> None:
-    import sys
-    from pathlib import Path as _Path
+    from scripts.seed_demo_data import seed_demo_data
 
-    seed_script_dir = str(_Path(__file__).resolve().parents[2])
-    if seed_script_dir not in sys.path:
-        sys.path.insert(0, seed_script_dir)
-
-    import seed_risk_data
-    seed_risk_data.seed()
+    seed_demo_data()

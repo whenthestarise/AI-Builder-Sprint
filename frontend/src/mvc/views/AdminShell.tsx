@@ -1,8 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 /* ==============================
  * 타입
@@ -64,6 +66,14 @@ const navigationItems: NavigationItem[] = [
 
 export function AdminShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [isResettingDataset, setIsResettingDataset] =
+    useState(false);
+  const [resetModal, setResetModal] = useState<{
+    title: string;
+    message: string;
+    tone: "success" | "error";
+  } | null>(null);
 
   const isNavigationActive = (activePaths: string[]) => {
     return activePaths.some((path) => {
@@ -73,6 +83,42 @@ export function AdminShell({ children }: { children: ReactNode }) {
 
       return pathname.startsWith(path);
     });
+  };
+
+  const handleResetDataset = async () => {
+    setIsResettingDataset(true);
+
+    try {
+      const response = await fetch(
+        "/api/risk/reset-seed",
+        {
+          method: "POST",
+          cache: "no-store",
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("데이터셋 초기화에 실패했습니다.");
+      }
+
+      router.refresh();
+      setResetModal({
+        title: "초기화 완료",
+        message: "데이터셋이 기본값으로 초기화되었습니다.",
+        tone: "success",
+      });
+    } catch (error) {
+      setResetModal({
+        title: "초기화 실패",
+        message:
+          error instanceof Error
+            ? error.message
+            : "데이터셋 초기화 중 오류가 발생했습니다.",
+        tone: "error",
+      });
+    } finally {
+      setIsResettingDataset(false);
+    }
   };
 
   return (
@@ -92,7 +138,21 @@ export function AdminShell({ children }: { children: ReactNode }) {
           오른쪽 PageHeader와 같은 높이의 빈 영역입니다.
           사이드바 메뉴는 페이지 헤더 아래에서 시작합니다.
         */}
-        <div className="h-[120px] shrink-0 border-b border-slate-100" />
+        <div className="flex h-[120px] shrink-0 items-center border-b border-slate-100 px-5">
+          <Link
+            href="/main"
+            aria-label="Pawmise 메인으로 이동"
+            className="inline-flex items-center"
+          >
+            <Image
+              src="/Pawmise_logo.svg"
+              alt="Pawmise"
+              width={166}
+              height={56}
+              className="h-14 w-auto"
+            />
+          </Link>
+        </div>
 
         {/* 메뉴 */}
         <nav className="flex flex-1 flex-col gap-2 px-3 py-5">
@@ -104,6 +164,15 @@ export function AdminShell({ children }: { children: ReactNode }) {
               description={item.description}
               icon={item.icon}
               active={isNavigationActive(item.activePaths)}
+              loading={
+                item.href === "/settings" &&
+                isResettingDataset
+              }
+              onClick={
+                item.href === "/settings"
+                  ? handleResetDataset
+                  : undefined
+              }
             />
           ))}
         </nav>
@@ -118,8 +187,15 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-slate-200 bg-white px-5 lg:hidden">
         <Link
           href="/main"
-          className="flex items-center gap-2 text-base font-black tracking-tight text-slate-950"
+          className="flex items-center gap-2 text-base font-black tracking-tight text-slate-950 [&>span]:hidden"
         >
+          <Image
+            src="/Pawmise_logo.svg"
+            alt="Pawmise"
+            width={118}
+            height={40}
+            className="h-10 w-auto"
+          />
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500 text-sm text-white">
             🐾
           </span>
@@ -142,6 +218,15 @@ export function AdminShell({ children }: { children: ReactNode }) {
       <div className="min-w-0 lg:ml-[210px]">
         <main className="min-h-screen min-w-0">{children}</main>
       </div>
+
+      {resetModal ? (
+        <DatasetResetModal
+          title={resetModal.title}
+          message={resetModal.message}
+          tone={resetModal.tone}
+          onClose={() => setResetModal(null)}
+        />
+      ) : null}
     </div>
   );
 }
@@ -156,25 +241,33 @@ function SidebarNavigationItem({
   description,
   icon,
   active,
+  loading = false,
+  onClick,
 }: {
   href: string;
   label: string;
   description: string;
   icon: NavigationIconType;
   active: boolean;
+  loading?: boolean;
+  onClick?: () => void;
 }) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      className={[
-        "group flex min-h-[56px] items-center gap-3 rounded-lg border px-3 py-2.5",
-        "transition-colors duration-150",
-        active
-          ? "border-blue-200 bg-blue-50 text-blue-600"
-          : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900",
-      ].join(" ")}
-    >
+  const displayLabel =
+    href === "/settings" ? "설정" : label;
+  const displayDescription =
+    href === "/settings"
+      ? "데이터셋 기본 초기화"
+      : description;
+  const className = [
+    "group flex min-h-[56px] w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left",
+    "transition-colors duration-150",
+    active
+      ? "border-blue-200 bg-blue-50 text-blue-600"
+      : "border-transparent text-slate-600 hover:bg-slate-50 hover:text-slate-900",
+    loading ? "cursor-wait opacity-75" : "",
+  ].join(" ");
+  const content = (
+    <>
       <span
         className={[
           "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg",
@@ -194,7 +287,7 @@ function SidebarNavigationItem({
             active ? "text-blue-600" : "text-slate-700",
           ].join(" ")}
         >
-          {label}
+          {loading ? "초기화 중..." : displayLabel}
         </span>
 
         <span
@@ -203,9 +296,32 @@ function SidebarNavigationItem({
             active ? "text-blue-500" : "text-slate-400",
           ].join(" ")}
         >
-          {description}
+          {displayDescription}
         </span>
       </span>
+    </>
+  );
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        disabled={loading}
+        className={className}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
+      className={className}
+    >
+      {content}
     </Link>
   );
 }
@@ -231,6 +347,68 @@ function AdminProfile() {
             부산보호센터 활동가
           </p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function DatasetResetModal({
+  title,
+  message,
+  tone,
+  onClose,
+}: {
+  title: string;
+  message: string;
+  tone: "success" | "error";
+  onClose: () => void;
+}) {
+  const isSuccess = tone === "success";
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/45 px-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="dataset-reset-title"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div
+          className={[
+            "flex h-10 w-10 items-center justify-center rounded-full",
+            isSuccess
+              ? "bg-emerald-100 text-emerald-600"
+              : "bg-red-100 text-red-600",
+          ].join(" ")}
+        >
+          {isSuccess ? (
+            <CheckIcon />
+          ) : (
+            <AlertIcon />
+          )}
+        </div>
+
+        <h2
+          id="dataset-reset-title"
+          className="mt-4 text-base font-extrabold text-slate-950"
+        >
+          {title}
+        </h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          {message}
+        </p>
+
+        <button
+          type="button"
+          onClick={onClose}
+          className="mt-5 flex h-10 w-full items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-bold text-white transition hover:bg-blue-700"
+        >
+          확인
+        </button>
       </div>
     </div>
   );
@@ -377,4 +555,42 @@ function NavigationIcon({ icon }: { icon: NavigationIconType }) {
     default:
       return null;
   }
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m5 12 4 4L19 6" />
+    </svg>
+  );
+}
+
+function AlertIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 8v5" />
+      <path d="M12 17h.01" />
+      <path d="M10.3 3.9 2.5 18a2 2 0 0 0 1.8 3h15.4a2 2 0 0 0 1.8-3L13.7 3.9a2 2 0 0 0-3.4 0Z" />
+    </svg>
+  );
 }

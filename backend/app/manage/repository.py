@@ -1,9 +1,19 @@
+from app.form.database import get_connection, initialize_database
 from app.manage.schemas import (
     ManageApplication,
     ManageDetailData,
     ManageListData,
     ManagePet,
 )
+
+
+PET_IMAGE_URLS = [
+    "/pet-main-1.png",
+    "/pet-main-2.png",
+    "/pet-main-3.png",
+    "/pet-main-4.png",
+    "/pet-main-5.png",
+]
 
 
 PETS = [
@@ -159,6 +169,48 @@ PETS = [
     },
 ]
 
+def ensure_pet_images_in_db() -> dict[str, str]:
+    initialize_database()
+
+    with get_connection() as connection:
+        for pet in PETS:
+            connection.execute(
+                """
+                INSERT INTO pets (
+                    pet_id,
+                    pet_name,
+                    adopter_name,
+                    adoption_date,
+                    image_url,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(pet_id) DO UPDATE SET
+                    image_url = excluded.image_url
+                """,
+                (
+                    pet["id"],
+                    pet["name"],
+                    None,
+                    pet.get("intakeDate"),
+                    pet["imageUrl"],
+                    "2026-08-01T09:00:00",
+                ),
+            )
+
+        rows = connection.execute(
+            """
+            SELECT pet_id, image_url
+            FROM pets
+            WHERE COALESCE(image_url, '') <> ''
+            """
+        ).fetchall()
+
+    return {
+        row["pet_id"]: row["image_url"]
+        for row in rows
+    }
+
 
 APPLICATIONS = [
     {
@@ -213,6 +265,7 @@ APPLICATIONS = [
 
 
 def list_manage_data() -> ManageListData:
+    db_image_urls = ensure_pet_images_in_db()
     applications = [
         ManageApplication(**application)
         for application in APPLICATIONS
@@ -220,7 +273,10 @@ def list_manage_data() -> ManageListData:
 
     pets = [
         ManagePet(
-            **pet,
+            **{
+                **pet,
+                "imageUrl": db_image_urls.get(pet["id"]) or pet["imageUrl"],
+            },
             applications=sum(
                 application.petId == pet["id"]
                 for application in applications

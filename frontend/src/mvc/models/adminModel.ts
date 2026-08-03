@@ -1,6 +1,9 @@
 export type PetStatus = "matching" | "available" | "adopted";
 export type RiskLevel = "normal" | "watch" | "warning" | "urgent";
-export type RiskApprovalStatus = "pending" | "approved";
+export type RiskApprovalStatus =
+  | "pending"
+  | "approved"
+  | "actionApproved";
 
 export type Pet = {
   id: string;
@@ -37,6 +40,7 @@ export type AdoptionApplication = {
 
 export type Contract = {
   id: string;
+  petId?: string;
   petName: string;
   adopterName: string;
   applicantPhone?: string;
@@ -48,6 +52,7 @@ export type Contract = {
   adoptionDate?: string;
   lastCertificationDate?: string;
   certificationRound?: number;
+  petImageUrl?: string;
 };
 
 export type TimelineEvent = {
@@ -64,6 +69,7 @@ export type RiskDashboardData = {
   headerDotClass: string;
   behaviorTrait: string;
   signedDate: string;
+  lastCertificationDate?: string | null;
   manualGrade?: string;
   manualCategory?: string;
   manualReason?: string;
@@ -156,8 +162,7 @@ export const pets: Pet[] = [
     englishName: "Bao",
     age: "3살",
     breed: "믹스견",
-    imageUrl:
-      "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=900&q=80",
+    imageUrl: "/pet-main-1.png",
     status: "matching",
     contractStatus: "매칭 대기중",
     traits: [
@@ -180,8 +185,7 @@ export const pets: Pet[] = [
     englishName: "Coco",
     age: "2살",
     breed: "말티즈",
-    imageUrl:
-      "https://images.unsplash.com/photo-1583511655857-d19b40a7a54e?auto=format&fit=crop&w=900&q=80",
+    imageUrl: "/pet-main-2.png",
     status: "available",
     contractStatus: "입양 가능",
     traits: [
@@ -204,8 +208,7 @@ export const pets: Pet[] = [
     englishName: "Max",
     age: "4살",
     breed: "골든 리트리버 믹스",
-    imageUrl:
-      "https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&w=900&q=80",
+    imageUrl: "/pet-main-3.png",
     status: "available",
     contractStatus: "입양 가능",
     traits: [
@@ -228,8 +231,7 @@ export const pets: Pet[] = [
     englishName: "Dami",
     age: "10살 (노령견)",
     breed: "시추",
-    imageUrl:
-      "https://images.unsplash.com/photo-1450778869180-41d0601e046e?auto=format&fit=crop&w=900&q=80",
+    imageUrl: "/pet-main-4.png",
     status: "available",
     contractStatus: "입양 가능",
     traits: [
@@ -252,8 +254,7 @@ export const pets: Pet[] = [
     englishName: "Leo",
     age: "6개월 (퍼피)",
     breed: "진도 믹스",
-    imageUrl:
-      "https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&w=900&q=80",
+    imageUrl: "/pet-main-5.png",
     status: "available",
     contractStatus: "입양 가능",
     traits: [

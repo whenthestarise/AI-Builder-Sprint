@@ -2,6 +2,7 @@ from app.form.database import dump_json, get_connection, initialize_database
 
 
 CREATED_AT = "2026-08-01T09:00:00"
+DEFAULT_CERTIFICATION_IMAGE_URL = "/default-animal-photo.svg"
 
 
 def insert_pet(
@@ -40,6 +41,7 @@ def insert_contract(
     pet_id: str,
     adopter_name: str,
     signed_at: str,
+    applicant_phone: str | None = None,
 ) -> None:
     connection.execute(
         """
@@ -47,16 +49,18 @@ def insert_contract(
             contract_id,
             pet_id,
             adopter_name,
+            applicant_phone,
             status,
             signed_at,
             created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         (
             contract_id,
             pet_id,
             adopter_name,
+            applicant_phone,
             "SIGNED",
             signed_at,
             CREATED_AT,
@@ -124,6 +128,7 @@ def insert_submission(
     manager_actions: list[str] | None = None,
     manager_comment: str | None = None,
     reviewed_at: str | None = None,
+    image_url: str = DEFAULT_CERTIFICATION_IMAGE_URL,
 ) -> None:
     connection.execute(
         """
@@ -146,9 +151,10 @@ def insert_submission(
             files_json,
             manager_actions_json,
             manager_comment,
+            manager_image_data_url,
             reviewed_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             submission_id,
@@ -168,7 +174,8 @@ def insert_submission(
             dump_json(text_inputs),
             dump_json([]),
             dump_json(manager_actions or []),
-            manager_comment,
+            manager_comment or "",
+            image_url,
             reviewed_at,
         ),
     )
@@ -183,6 +190,7 @@ def insert_missing_certification(
     schedule_id: str,
     sent_at: str,
     checked_at: str,
+    image_url: str = DEFAULT_CERTIFICATION_IMAGE_URL,
 ) -> None:
     connection.execute(
         """
@@ -199,9 +207,10 @@ def insert_missing_certification(
             status_label,
             manager_actions_json,
             manager_comment,
+            manager_image_data_url,
             reviewed_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             missing_id,
@@ -216,6 +225,7 @@ def insert_missing_certification(
             "[미제출 (15일 지연)]",
             dump_json([]),
             None,
+            image_url,
             None,
         ),
     )
@@ -248,28 +258,64 @@ def seed_demo_data() -> None:
             pet_id="PET-DEMO-TOFU-001",
             adopter_name="정다은",
             signed_at="2026-06-01T10:00:00",
+            applicant_phone="010-3333-2222",
         )
         insert_schedule_series(
             connection,
             contract_id="CONTRACT-DEMO-TOFU-001",
             code="TOFU",
             scheduled_dates=[
+                "2026-06-04T09:00:00",
+                "2026-06-08T09:00:00",
+                "2026-07-01T09:00:00",
                 "2026-07-29T09:00:00",
                 "2026-08-29T09:00:00",
                 "2026-09-29T09:00:00",
-                "2026-10-29T09:00:00",
-                "2026-11-29T09:00:00",
-                "2026-12-29T09:00:00",
             ],
-            submitted_rounds={1},
+            submitted_rounds={1, 2, 3, 4},
             sent_rounds=set(),
         )
+        for round_number, submitted_at, note in [
+            (1, "2026-06-04T11:00:00", "입양 초기 긴장은 있지만 밥을 잘 먹고 있습니다."),
+            (2, "2026-06-08T11:00:00", "배변 상태와 가족 적응 상태가 모두 정상입니다."),
+            (3, "2026-07-01T11:00:00", "동물등록과 기본 건강 관리를 완료했습니다."),
+        ]:
+            insert_submission(
+                connection,
+                submission_id=f"CERT-DEMO-TOFU-{round_number:03}",
+                pet_id="PET-DEMO-TOFU-001",
+                round_number=round_number,
+                schedule_id=f"SCHEDULE-DEMO-TOFU-{round_number:03}",
+                sent_at={
+                    1: "2026-06-04T09:00:00",
+                    2: "2026-06-08T09:00:00",
+                    3: "2026-07-01T09:00:00",
+                }[round_number],
+                submitted_at=submitted_at,
+                risk="green",
+                approval_status="APPROVED",
+                answers={
+                    "appetite": "good",
+                    "condition": "active",
+                    "toilet": "normal",
+                    "familyReaction": "adapted",
+                },
+                body_symptoms=["healthy"],
+                text_inputs={
+                    "petType": "포메라니안",
+                    "phone": "010-3333-2222",
+                    "specialNote": note,
+                },
+                manager_actions=["인증 내용 확인 완료"],
+                manager_comment="정상 적응 상태를 확인했습니다.",
+                reviewed_at=submitted_at,
+            )
         insert_submission(
             connection,
-            submission_id="CERT-DEMO-TOFU-001",
+            submission_id="CERT-DEMO-TOFU-004",
             pet_id="PET-DEMO-TOFU-001",
-            round_number=1,
-            schedule_id="SCHEDULE-DEMO-TOFU-001",
+            round_number=4,
+            schedule_id="SCHEDULE-DEMO-TOFU-004",
             sent_at="2026-07-29T09:00:00",
             submitted_at="2026-07-29T11:00:00",
             risk="green",
@@ -298,28 +344,29 @@ def seed_demo_data() -> None:
             pet_id="PET-DEMO-CHOCO-001",
             pet_name="초코",
             adopter_name="강민수",
-            adoption_date="2026-04-15",
+            adoption_date="2026-07-31",
         )
         insert_contract(
             connection,
             contract_id="CONTRACT-DEMO-CHOCO-001",
             pet_id="PET-DEMO-CHOCO-001",
             adopter_name="강민수",
-            signed_at="2026-04-15T10:00:00",
+            signed_at="2026-07-31T10:00:00",
+            applicant_phone="010-4444-5555",
         )
         insert_schedule_series(
             connection,
             contract_id="CONTRACT-DEMO-CHOCO-001",
             code="CHOCO",
             scheduled_dates=[
-                "2026-07-28T09:00:00",
-                "2026-08-15T09:00:00",
-                "2026-09-15T09:00:00",
-                "2026-10-15T09:00:00",
-                "2026-11-15T09:00:00",
-                "2026-12-15T09:00:00",
+                "2026-08-01T09:00:00",
+                "2026-08-02T09:00:00",
+                "2026-08-05T09:00:00",
+                "2026-08-28T09:00:00",
+                "2026-10-27T09:00:00",
+                "2027-01-25T09:00:00",
             ],
-            submitted_rounds={1},
+            submitted_rounds={1, 2},
             sent_rounds=set(),
         )
         insert_submission(
@@ -328,10 +375,37 @@ def seed_demo_data() -> None:
             pet_id="PET-DEMO-CHOCO-001",
             round_number=1,
             schedule_id="SCHEDULE-DEMO-CHOCO-001",
-            sent_at="2026-07-28T09:00:00",
-            submitted_at="2026-07-28T13:00:00",
+            sent_at="2026-08-01T09:00:00",
+            submitted_at="2026-08-01T13:00:00",
+            risk="green",
+            approval_status="APPROVED",
+            answers={
+                "appetite": "good",
+                "condition": "active",
+                "toilet": "normal",
+                "familyReaction": "adapted",
+                "separationReaction": "calm",
+            },
+            body_symptoms=["healthy"],
+            text_inputs={
+                "petType": "시바견",
+                "phone": "010-4444-5555",
+                "specialNote": "입양 첫날보다 긴장이 줄었고 사료도 잘 먹고 있습니다.",
+            },
+            manager_actions=["인증 내용 확인 완료"],
+            manager_comment="초기 적응 상태가 안정적입니다.",
+            reviewed_at="2026-08-01T13:15:00",
+        )
+        insert_submission(
+            connection,
+            submission_id="CERT-DEMO-CHOCO-002",
+            pet_id="PET-DEMO-CHOCO-001",
+            round_number=2,
+            schedule_id="SCHEDULE-DEMO-CHOCO-002",
+            sent_at="2026-08-02T09:00:00",
+            submitted_at="2026-08-02T13:00:00",
             risk="yellow",
-            approval_status="PENDING",
+            approval_status="APPROVED",
             answers={
                 "appetite": "good",
                 "condition": "active",
@@ -361,6 +435,7 @@ def seed_demo_data() -> None:
             pet_id="PET-DEMO-KONGI-001",
             adopter_name="이지은",
             signed_at="2025-07-10T10:00:00",
+            applicant_phone="010-9876-5432",
         )
         insert_schedule_series(
             connection,
@@ -411,7 +486,7 @@ def seed_demo_data() -> None:
                 sent_at=scheduled_at_for_kongi(round_number),
                 submitted_at=submitted_at,
                 risk="green",
-                approval_status="APPROVED",
+                approval_status="PENDING" if round_number == 4 else "APPROVED",
                 answers={
                     "appetite": "good",
                     "condition": "active",
@@ -443,6 +518,7 @@ def seed_demo_data() -> None:
             pet_id="PET-DEMO-BORI-001",
             adopter_name="박서준",
             signed_at="2026-02-01T10:00:00",
+            applicant_phone="010-5555-4444",
         )
         insert_schedule_series(
             connection,
@@ -459,6 +535,39 @@ def seed_demo_data() -> None:
             submitted_rounds={1, 2},
             sent_rounds={3},
         )
+        for round_number, submitted_at, risk, note in [
+            (1, "2026-02-04T12:00:00", "orange", "입양 직후 겁이 많고 구석에 숨는 행동이 있습니다."),
+            (2, "2026-03-01T15:30:00", "orange", "낯선 소리에 예민하고 식욕이 불안정합니다."),
+        ]:
+            insert_submission(
+                connection,
+                submission_id=f"CERT-DEMO-BORI-{round_number:03}",
+                pet_id="PET-DEMO-BORI-001",
+                round_number=round_number,
+                schedule_id=f"SCHEDULE-DEMO-BORI-{round_number:03}",
+                sent_at={
+                    1: "2026-02-04T09:00:00",
+                    2: "2026-03-01T09:00:00",
+                }[round_number],
+                submitted_at=submitted_at,
+                risk=risk,
+                approval_status="APPROVED",
+                answers={
+                    "appetite": "almost_none",
+                    "condition": "abnormal",
+                    "toilet": "slightly_abnormal",
+                    "familyReaction": "stressed",
+                },
+                body_symptoms=["observe", "warning"],
+                text_inputs={
+                    "phone": "010-5555-4444",
+                    "specialNote": note,
+                    "bodyObserveDetail": "지속적인 관찰과 보호자 상담이 필요합니다.",
+                },
+                manager_actions=["우선 전화 상담 완료"],
+                manager_comment="주의 상태로 후속 모니터링이 필요합니다.",
+                reviewed_at=submitted_at,
+            )
         insert_missing_certification(
             connection,
             missing_id="CERT-DEMO-BORI-003",

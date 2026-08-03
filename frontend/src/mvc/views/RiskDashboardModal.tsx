@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 /* eslint-disable @next/next/no-img-element */
 
@@ -116,6 +116,9 @@ const DEFAULT_RISK_CONFIG: RiskConfig = {
   fallbackRows: [],
 };
 
+const DEFAULT_CERTIFICATION_IMAGE_URL =
+  "/default-animal-photo.svg";
+
 type ManualStatusPayload = {
   grade: ManualGrade;
   category: string;
@@ -227,11 +230,13 @@ export function RiskDashboardModal({
     localCertificationCards,
     setLocalCertificationCards,
   ] = useState<RiskCertificationCard[]>(
-    certificationCards,
+    withDefaultCertificationImages(certificationCards),
   );
 
   useEffect(() => {
-    setLocalCertificationCards(certificationCards);
+    setLocalCertificationCards(
+      withDefaultCertificationImages(certificationCards),
+    );
   }, [certificationCards]);
   const [
     selectedCertificationId,
@@ -239,6 +244,10 @@ export function RiskDashboardModal({
   ] = useState<string | null>(null);
   const [noticeStatus, setNoticeStatus] =
     useState("");
+  const [documentViewStatus, setDocumentViewStatus] =
+    useState("");
+  const [isOpeningDocument, setIsOpeningDocument] =
+    useState(false);
 
   const selectedCertification =
     useMemo(
@@ -262,10 +271,50 @@ export function RiskDashboardModal({
     return null;
   }
 
+  const extendedContract =
+    contract as ExtendedContract;
+
   const currentGradeStyle = getGradeOption(
     currentGrade,
     gradeOptions,
   );
+  const handleOpenOriginalContract = async () => {
+    setIsOpeningDocument(true);
+    setDocumentViewStatus("");
+
+    try {
+      const response = await fetch(
+        `/api/modusign/documents/${encodeURIComponent(contract.id)}/embedded-view`,
+        { cache: "no-store" },
+      );
+      const result = (await response.json()) as {
+        embeddedUrl?: string;
+        message?: string;
+      };
+
+      if (!response.ok || !result.embeddedUrl) {
+        throw new Error(
+          result.message ||
+            "계약서 원본 보기 URL을 가져오지 못했습니다.",
+        );
+      }
+
+      window.open(
+        result.embeddedUrl,
+        "_blank",
+        "noopener,noreferrer",
+      );
+    } catch (error) {
+      setDocumentViewStatus(
+        error instanceof Error
+          ? error.message
+          : "계약서 원본을 열지 못했습니다.",
+      );
+    } finally {
+      setIsOpeningDocument(false);
+    }
+  };
+
   const handleUpcomingNotice = async () => {
     const dueDate =
       upcomingTimeline.description.match(
@@ -305,7 +354,7 @@ export function RiskDashboardModal({
           title: `${contract.petName} \uC548\uBD80 \uC778\uC99D \uC0AC\uC804 \uC548\uB0B4`,
           description: `${contract.adopterName}\uB2D8, ${dueDate}\uAE4C\uC9C0 ${contract.petName}\uC758 \uC548\uBD80 \uC778\uC99D \uD3FC\uC744 \uC791\uC131\uD574 \uC8FC\uC138\uC694.`,
           imageUrl:
-            "https://images.unsplash.com/photo-1450778869180-41d0601e046e?auto=format&fit=crop&w=800&q=80",
+            DEFAULT_CERTIFICATION_IMAGE_URL,
           link: {
             mobileWebUrl: formUrl,
             webUrl: formUrl,
@@ -369,7 +418,21 @@ export function RiskDashboardModal({
     const approvalDate = formatDate(
       new Date(),
     );
-    const approvedStatus = `\uC2B9\uC778\uC644\uB8CC (${approvalDate})`;
+    const selectedCard =
+      localCertificationCards.find(
+        (card) =>
+          card.id === selectedCertificationId,
+      ) ?? null;
+    const isSelectedCardNormal =
+      selectedCard?.answers?.length
+        ? selectedCard.answers.every(
+            (answer) =>
+              answer.tone === "normal",
+          )
+        : selectedCard?.tone === "approved";
+    const approvedStatus = isSelectedCardNormal
+      ? `\uC2B9\uC778\uC644\uB8CC (${approvalDate})`
+      : `\uC870\uCE58 \uD6C4 \uC2B9\uC778\uC644\uB8CC (${approvalDate})`;
 
     await persistCertificationApproval(
       contract.id,
@@ -391,7 +454,9 @@ export function RiskDashboardModal({
                 status: approvedStatus,
                 imageUrl:
                   result.imageDataUrl ||
-                  card.imageUrl,
+                  card.imageUrl ||
+                  extendedContract.petImageUrl ||
+                  DEFAULT_CERTIFICATION_IMAGE_URL,
                 managerActions:
                   result.actions,
                 managerComment:
@@ -484,9 +549,16 @@ export function RiskDashboardModal({
                     value={contract.id}
                   />
                   <ContractInfoRow
-                    label="체결 일자"
+                    label="입양날짜"
                     value={
                       dashboardData.signedDate
+                    }
+                  />
+                  <ContractInfoRow
+                    label="마지막 인증일"
+                    value={
+                      dashboardData.lastCertificationDate ??
+                      "인증 기록 없음"
                     }
                   />
                   <ContractInfoRow
@@ -507,10 +579,19 @@ export function RiskDashboardModal({
 
                 <button
                   type="button"
-                  className="mt-4 flex h-10 w-full items-center justify-center rounded-lg bg-blue-600 px-4 text-[13px] font-bold text-white transition hover:bg-blue-700"
+                  onClick={handleOpenOriginalContract}
+                  disabled={isOpeningDocument}
+                  className="mt-4 flex h-10 w-full items-center justify-center rounded-lg bg-blue-600 px-4 text-[13px] font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-400"
                 >
-                  계약서 원본 열람하기
+                  {isOpeningDocument
+                    ? "계약서 원본 여는 중..."
+                    : "계약서 원본 열람하기"}
                 </button>
+                {documentViewStatus ? (
+                  <p className="mt-2 text-[11px] leading-4 text-red-600">
+                    {documentViewStatus}
+                  </p>
+                ) : null}
               </section>
 
               <section className="mt-4 px-1">
@@ -767,9 +848,9 @@ function CertificationReviewModal({
     useRef<HTMLInputElement>(null);
   const [imageDataUrl, setImageDataUrl] =
     useState(
-      card.imageUrl ??
-        extendedContract.petImageUrl ??
-        "",
+      card.imageUrl ||
+        extendedContract.petImageUrl ||
+        DEFAULT_CERTIFICATION_IMAGE_URL,
     );
   const [
     selectedActions,
@@ -781,6 +862,22 @@ function CertificationReviewModal({
     useState(
       card.managerComment ?? "",
     );
+
+  useEffect(() => {
+    setImageDataUrl(
+      card.imageUrl ||
+        extendedContract.petImageUrl ||
+        DEFAULT_CERTIFICATION_IMAGE_URL,
+    );
+    setSelectedActions(card.managerActions ?? []);
+    setComment(card.managerComment ?? "");
+  }, [
+    card.id,
+    card.imageUrl,
+    card.managerActions,
+    card.managerComment,
+    extendedContract.petImageUrl,
+  ]);
 
   const answers = card.answers ?? [];
   const isAllNormal =
@@ -972,6 +1069,16 @@ function CertificationReviewModal({
                   src={imageDataUrl}
                   alt={`${contract.petName} 인증 사진`}
                   className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                  onError={(event) => {
+                    if (
+                      event.currentTarget.src.endsWith(
+                        DEFAULT_CERTIFICATION_IMAGE_URL,
+                      )
+                    ) {
+                      return;
+                    }
+                    setImageDataUrl(DEFAULT_CERTIFICATION_IMAGE_URL);
+                  }}
                 />
               ) : (
                 <div className="flex h-full w-full items-center justify-center bg-slate-200 px-5 text-center">
@@ -1578,6 +1685,17 @@ function getInitialGradeFromValues(
   }
 
   return "caution";
+}
+
+function withDefaultCertificationImages(
+  cards: RiskCertificationCard[],
+) {
+  return cards.map((card) => ({
+    ...card,
+    imageUrl:
+      card.imageUrl ||
+      DEFAULT_CERTIFICATION_IMAGE_URL,
+  }));
 }
 
 function getGradeOption(

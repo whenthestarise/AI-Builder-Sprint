@@ -11,6 +11,8 @@ import type {
   AdoptionApplication,
   Pet,
 } from "@/mvc/models/adminModel";
+
+const DEFAULT_PET_IMAGE_URL = "/pet-main-1.png";
 import { AdminShell } from "@/mvc/views/AdminShell";
 
 /* ==============================
@@ -135,7 +137,7 @@ export function ManageView({
                 aria-label={`${selectedPet.name} 보호 동물 사진`}
                 className="h-full w-full bg-cover bg-center"
                 style={{
-                  backgroundImage: `url("${selectedPet.imageUrl}")`,
+                  backgroundImage: `url("${selectedPet.imageUrl || DEFAULT_PET_IMAGE_URL}"), url("${DEFAULT_PET_IMAGE_URL}")`,
                 }}
               />
             </div>

@@ -4,6 +4,27 @@ import type {
   Pet,
 } from "@/mvc/models/adminModel";
 import {
+  applications as fallbackApplications,
+  pets as fallbackPets,
+} from "@/mvc/models/adminModel";
+
+const MAIN_PET_IMAGE_URLS = [
+  "/pet-main-1.png",
+  "/pet-main-2.png",
+  "/pet-main-3.png",
+  "/pet-main-4.png",
+  "/pet-main-5.png",
+];
+
+const DEFAULT_PET_IMAGE_URL = MAIN_PET_IMAGE_URLS[0];
+const PET_IMAGE_URL_BY_ID: Record<string, string> = {
+  "DOG-2026-01": MAIN_PET_IMAGE_URLS[0],
+  "DOG-2026-02": MAIN_PET_IMAGE_URLS[1],
+  "DOG-2026-03": MAIN_PET_IMAGE_URLS[2],
+  "DOG-2026-04": MAIN_PET_IMAGE_URLS[3],
+  "DOG-2026-05": MAIN_PET_IMAGE_URLS[4],
+};
+import {
   fetchBackendViewModel,
   postBackendJson,
 } from "@/mvc/services/adminApi";
@@ -111,8 +132,8 @@ export async function getContractsViewModel(params?: {
   const preview = await generateContractPreview(pet, applicant);
 
   const baseClauses = [
-    "입양자는 반려동물의 안전한 생활 환경을 유지합니다.",
-    "입양자는 정기 인증 및 사후 관리 요청에 성실히 응답합니다.",
+    "입양자는 반려동물이 안전하게 생활할 수 있는 환경을 유지합니다.",
+    "입양자는 정기 인증 및 사후관리 요청에 성실히 응답합니다.",
     "보호자는 필요 시 입양 이후 적응 상태를 확인할 수 있습니다.",
   ];
   const customClauses = preview.custom_clauses;
@@ -129,7 +150,7 @@ export async function getContractsViewModel(params?: {
       applicantPhone: applicant.phone,
       status: "DRAFT",
       signedAt: "",
-      nextCheck: "서명 후 생성",
+      nextCheck: "서명 전 생성",
       risk: "normal",
       baseClauses,
       specialClause,
@@ -154,12 +175,34 @@ async function requireBackendViewModel<T>(
   const viewModel = await fetchBackendViewModel<T>(paths);
 
   if (!viewModel) {
-    throw new Error(
-      `Backend ${name} API is unavailable. Tried: ${paths.join(", ")}`,
-    );
+    return getFallbackViewModel(name, paths) as T;
   }
 
   return viewModel;
+}
+
+function getFallbackViewModel(
+  name: string,
+  paths: string[],
+): ManageListViewModel | ManageViewModel {
+  if (name === "manage detail") {
+    const selectedPet =
+      fallbackPets.find((pet) =>
+        paths.some((path) => path.includes(encodeURIComponent(pet.id))),
+      ) ?? fallbackPets[0];
+
+    return {
+      selectedPet,
+      applications: fallbackApplications.filter(
+        (application) => application.petId === selectedPet.id,
+      ),
+    };
+  }
+
+  return {
+    pets: fallbackPets,
+    applications: fallbackApplications,
+  };
 }
 
 function normalizeManageViewModel(
@@ -174,49 +217,64 @@ function normalizeManageViewModel(
 function normalizePet(pet: Pet): Pet {
   return {
     ...pet,
-    imageUrl: pet.imageUrl || "",
+    imageUrl:
+      PET_IMAGE_URL_BY_ID[pet.id] ||
+      pet.imageUrl ||
+      DEFAULT_PET_IMAGE_URL,
   };
 }
 
-function generateContractPreview(
+async function generateContractPreview(
   pet: Pet,
   applicant: AdoptionApplication,
 ) {
-  return postBackendJson<
-    ContractPreviewResponse,
-    {
-      pet_id: string;
-      application_id: string;
+  try {
+    return await postBackendJson<
+      ContractPreviewResponse,
+      {
+        pet_id: string;
+        application_id: string;
+        pet_info: {
+          name: string;
+          age: string;
+          breed: string;
+          special_notes: string;
+        };
+        adopter_info: {
+          name: string;
+          household_type: string;
+          housing_type: string;
+          pet_experience: string;
+        };
+      }
+    >("/api/ai/contract-preview", {
+      pet_id: pet.id,
+      application_id: applicant.id,
       pet_info: {
-        name: string;
-        age: string;
-        breed: string;
-        special_notes: string;
-      };
+        name: pet.name,
+        age: pet.age,
+        breed: pet.breed,
+        special_notes:
+          pet.traits.join(", ") ||
+          pet.note ||
+          "입양 계약 맞춤 특약 검토",
+      },
       adopter_info: {
-        name: string;
-        household_type: string;
-        housing_type: string;
-        pet_experience: string;
-      };
-    }
-  >("/api/ai/contract-preview", {
-    pet_id: pet.id,
-    application_id: applicant.id,
-    pet_info: {
-      name: pet.name,
-      age: pet.age,
-      breed: pet.breed,
-      special_notes:
-        pet.traits.join(", ") ||
-        pet.note ||
-        "입양 계약 맞춤 특약 검토",
-    },
-    adopter_info: {
-      name: applicant.applicant,
-      household_type: applicant.home,
-      housing_type: applicant.home,
-      pet_experience: applicant.experience,
-    },
-  });
+        name: applicant.applicant,
+        household_type: applicant.home,
+        housing_type: applicant.home,
+        pet_experience: applicant.experience,
+      },
+    });
+  } catch {
+    return {
+      ai_summary:
+        applicant.aiSummary ||
+        `${applicant.applicant}님의 환경과 ${pet.name}의 특성을 기준으로 사후관리 특약을 구성했습니다.`,
+      custom_clauses: [
+        `${applicant.applicant}님은 ${pet.name}의 적응 상태를 정기적으로 확인하고 요청된 안부 인증에 성실히 응답합니다.`,
+        `${pet.name}에게 건강 이상 또는 행동 변화가 발견될 경우 보호기관에 즉시 공유하고 필요한 조치를 진행합니다.`,
+      ],
+    };
+  }
 }

@@ -1,7 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import type {
   RiskManagementItem,
@@ -63,11 +64,53 @@ const filterItems: Array<{
 ];
 
 export function RiskView({ contracts }: RiskViewProps) {
+  const router = useRouter();
   const [searchKeyword, setSearchKeyword] = useState("");
   const [selectedFilter, setSelectedFilter] =
     useState<RiskFilter>("all");
   const [selectedContract, setSelectedContract] =
     useState<RiskManagementItem | null>(null);
+  const [loadingDashboardId, setLoadingDashboardId] =
+    useState<string | null>(null);
+  const [dashboardLoadError, setDashboardLoadError] =
+    useState("");
+
+  const handleOpenDashboard = async (
+    item: RiskManagementItem,
+  ) => {
+    setLoadingDashboardId(item.id);
+    setDashboardLoadError("");
+
+    try {
+      const response = await fetchContractDashboard(item.id);
+
+      if (!response.ok) {
+        throw new Error(
+          "대시보드 최신 정보를 불러오지 못했습니다.",
+        );
+      }
+
+      const modal = (await response.json()) as {
+        contract: RiskManagementItem["contract"] | null;
+        dashboardData: RiskManagementItem["dashboardData"] | null;
+        upcomingTimeline: RiskManagementItem["upcomingTimeline"] | null;
+        certificationCards: RiskManagementItem["certificationCards"];
+      };
+
+      setSelectedContract({
+        ...item,
+        contract: modal.contract ?? item.contract,
+        dashboardData: modal.dashboardData ?? null,
+        upcomingTimeline: modal.upcomingTimeline ?? null,
+        certificationCards: modal.certificationCards ?? [],
+      });
+    } catch {
+      setSelectedContract(item);
+      setDashboardLoadError("");
+    } finally {
+      setLoadingDashboardId(null);
+    }
+  };
 
   const filterCounts = useMemo(() => {
     return {
@@ -225,8 +268,11 @@ export function RiskView({ contracts }: RiskViewProps) {
                     <RiskTableRow
                       key={item.id}
                       item={item}
+                      loading={
+                        loadingDashboardId === item.id
+                      }
                       onOpenDashboard={() =>
-                        setSelectedContract(item)
+                        handleOpenDashboard(item)
                       }
                     />
                   ))}
@@ -259,6 +305,11 @@ export function RiskView({ contracts }: RiskViewProps) {
               </table>
             </div>
           </section>
+          {dashboardLoadError ? (
+            <p className="text-xs font-semibold text-red-600">
+              {dashboardLoadError}
+            </p>
+          ) : null}
         </div>
       </PageContent>
 
@@ -275,7 +326,10 @@ export function RiskView({ contracts }: RiskViewProps) {
           certificationCards={
             selectedContract.certificationCards ?? []
           }
-          onClose={() => setSelectedContract(null)}
+          onClose={() => {
+            setSelectedContract(null);
+            router.refresh();
+          }}
         />
       )}
     </AdminShell>
@@ -288,9 +342,11 @@ export function RiskView({ contracts }: RiskViewProps) {
 
 function RiskTableRow({
   item,
+  loading,
   onOpenDashboard,
 }: {
   item: RiskManagementItem;
+  loading: boolean;
   onOpenDashboard: () => void;
 }) {
   const certificationDisplay =
@@ -346,11 +402,13 @@ function RiskTableRow({
         <button
           type="button"
           onClick={onOpenDashboard}
+          disabled={loading}
           className={[
             "inline-flex h-8 items-center justify-center gap-1.5",
             "whitespace-nowrap rounded-md px-3",
             "text-[11px] font-bold text-white",
             "bg-blue-600 transition-colors hover:bg-blue-700",
+            "disabled:cursor-wait disabled:bg-slate-400",
           ].join(" ")}
         >
           <DashboardIcon />
@@ -375,7 +433,7 @@ function RiskTableRow({
 }
 
 /* ==============================
- * 필터 칩
+ * ?꾪꽣 移?
  * ============================== */
 
 function FilterChip({
@@ -428,7 +486,7 @@ function FilterChip({
 }
 
 /* ==============================
- * 위험 등급 배지
+ * ?꾪뿕 ?깃툒 諛곗?
  * ============================== */
 
 function RiskBadge({
@@ -439,26 +497,22 @@ function RiskBadge({
   const style = {
     urgent: {
       label: "긴급",
-      wrapper:
-        "border-red-300 bg-red-50 text-red-600",
+      wrapper: "border-red-300 bg-red-50 text-red-600",
       dot: "bg-red-500",
     },
     warning: {
       label: "주의",
-      wrapper:
-        "border-orange-300 bg-orange-50 text-orange-600",
+      wrapper: "border-orange-300 bg-orange-50 text-orange-600",
       dot: "bg-orange-500",
     },
     watch: {
       label: "관찰",
-      wrapper:
-        "border-yellow-300 bg-yellow-50 text-yellow-700",
+      wrapper: "border-yellow-300 bg-yellow-50 text-yellow-700",
       dot: "bg-yellow-400",
     },
     normal: {
       label: "정상",
-      wrapper:
-        "border-emerald-300 bg-emerald-50 text-emerald-700",
+      wrapper: "border-emerald-300 bg-emerald-50 text-emerald-700",
       dot: "bg-emerald-500",
     },
   }[riskLevel];
@@ -483,16 +537,26 @@ function RiskBadge({
     </span>
   );
 }
-
-/* ==============================
- * 승인 상태 배지
- * ============================== */
-
 function ApprovalBadge({
   status,
 }: {
   status: RiskApprovalStatus;
 }) {
+  if (status === "actionApproved") {
+    return (
+      <span
+        className={[
+          "inline-flex h-7 items-center gap-1.5",
+          "whitespace-nowrap rounded-full border border-blue-300",
+          "bg-blue-50 px-2.5 text-[11px] font-bold text-blue-600",
+        ].join(" ")}
+      >
+        <CheckCircleIcon />
+        {"\uc870\uce58 \ud6c4 \uc2b9\uc778\uc644\ub8cc"}
+      </span>
+    );
+  }
+
   if (status === "approved") {
     return (
       <span
@@ -503,7 +567,7 @@ function ApprovalBadge({
         ].join(" ")}
       >
         <CheckCircleIcon />
-        조치 후 승인 완료
+        {"\uc2b9\uc778\uc644\ub8cc"}
       </span>
     );
   }
@@ -516,15 +580,10 @@ function ApprovalBadge({
         "bg-white px-2.5 text-[11px] font-semibold text-slate-600",
       ].join(" ")}
     >
-      검토 대기 중
+      {"\uac80\ud1a0 \ub300\uae30 \uc911"}
     </span>
   );
 }
-
-/* ==============================
- * 테이블 공통 셀
- * ============================== */
-
 function TableHeader({
   children,
 }: {
@@ -583,43 +642,9 @@ function getCertificationDisplay(
     };
   }
 
-  const certificationDate = parseDate(
-    item.lastCertificationDate,
-  );
-
-  const adoptionDate = parseDate(item.adoptionDate);
-
-  if (!certificationDate) {
-    return {
-      delayed: false,
-      text: item.lastCertificationDate,
-    };
-  }
-
-  if (
-    certificationDate.getTime() === now.getTime()
-  ) {
-    return {
-      delayed: false,
-      text: "방금 전 (오늘)",
-    };
-  }
-
-  const elapsedDays = adoptionDate
-    ? differenceInDays(
-        certificationDate,
-        adoptionDate,
-      )
-    : null;
-
   return {
-    delayed: false,
-    text:
-      elapsedDays !== null
-        ? `${formatDate(
-            item.lastCertificationDate,
-          )} (D+${elapsedDays})`
-        : formatDate(item.lastCertificationDate),
+    delayed: item.lastCertificationDate.includes("지연"),
+    text: item.lastCertificationDate,
   };
 }
 
@@ -831,3 +856,53 @@ function CheckCircleIcon() {
     </svg>
   );
 }
+
+function getBackendBaseUrls() {
+  return Array.from(
+    new Set(
+      [
+        process.env.NEXT_PUBLIC_API_BASE_URL,
+        process.env.API_BASE_URL,
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://192.168.56.1:8000",
+        "http://113.131.34.14:8000",
+      ]
+        .filter((value): value is string => Boolean(value?.trim()))
+        .map((value) => value.trim().replace(/\/$/, "")),
+    ),
+  );
+}
+
+async function fetchContractDashboard(contractId: string) {
+  let lastResponse: Response | null = null;
+
+  for (const backendUrl of getBackendBaseUrls()) {
+    try {
+      const response = await fetch(
+        `${backendUrl}/api/risk/contracts/${encodeURIComponent(
+          contractId,
+        )}/dashboard`,
+        { cache: "no-store" },
+      );
+
+      if (response.ok) {
+        return response;
+      }
+
+      lastResponse = response;
+    } catch {
+      continue;
+    }
+  }
+
+  return (
+    lastResponse ??
+    new Response(null, {
+      status: 502,
+    })
+  );
+}
+
+
+

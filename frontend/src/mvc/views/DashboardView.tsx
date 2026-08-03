@@ -7,6 +7,8 @@ import type {
   AdoptionApplication,
   Pet,
 } from "@/mvc/models/adminModel";
+
+const DEFAULT_PET_IMAGE_URL = "/pet-main-1.png";
 import {
   AdminShell,
   PageContent,
@@ -350,7 +352,7 @@ function PetCard({
               "group-hover:scale-[1.03]",
             ].join(" ")}
             style={{
-              backgroundImage: `url("${pet.imageUrl}")`,
+              backgroundImage: `url("${pet.imageUrl || DEFAULT_PET_IMAGE_URL}"), url("${DEFAULT_PET_IMAGE_URL}")`,
             }}
           />
         </div>
