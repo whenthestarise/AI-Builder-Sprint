@@ -84,14 +84,22 @@ AI 요청에는 다음 정보가 포함됩니다.
 - 양육 경험
 - 외출 시간 및 돌봄 가능 조건
 
-LLM은 아래와 같은 JSON 형식으로 응답합니다.
+LLM은 RAG 기준 문서를 참고해 적용 사유 요약만 JSON으로 응답합니다.
 
 ```json
 {
-  "ai_summary": "입양자와 동물 특성에 맞춘 특약 요약",
+  "ai_summary": "입양자와 동물 특성에 맞춘 특약 적용 사유 요약"
+}
+```
+
+서버는 LLM 응답에 더해 RAG에서 검색된 확정 특약 원문을 `custom_clauses`로 구성해 API 응답을 반환합니다.
+
+```json
+{
+  "ai_summary": "입양자와 동물 특성에 맞춘 특약 적용 사유 요약",
   "custom_clauses": [
-    "맞춤형 특약 문구 1",
-    "맞춤형 특약 문구 2"
+    "RAG 기준 문서에서 검색된 특약 원문 1",
+    "RAG 기준 문서에서 검색된 특약 원문 2"
   ]
 }
 ```
@@ -126,6 +134,16 @@ LLM은 검색된 기준 밖의 새로운 강제 의무를 임의로 만들지 �
 
 > 본 프로젝트는 Document Parse를 사용하지 않았습니다.  
 > Markdown 기준 문서를 ChromaDB에 색인하는 방식으로 RAG를 구현했습니다.
+
+### 개발 과정에서의 AI 도구 활용
+
+개발 과정에서는 Codex와 Claude Code를 페어 프로그래밍 도구로 활용했습니다.
+
+- FastAPI 라우터, SQLite 기반 데이터 흐름, RAG 색인 및 검색 구조를 설계·점검할 때 AI의 코드 리뷰와 오류 원인 분석을 참고했습니다.
+- Next.js 화면 구조, 관리자 대시보드 상태 관리, 모두싸인 전자계약 연동 흐름을 구현하는 과정에서 컴포넌트 분리와 API 호출 구조를 함께 검토했습니다.
+- README, 실행 가이드, 시연 시나리오가 실제 프로젝트 구조와 맞는지 대조하는 데 AI를 활용했습니다.
+
+AI가 제안한 내용은 팀에서 직접 검토한 뒤 프로젝트 목적에 맞는 부분만 반영했으며, API Key와 Webhook Secret 등 민감정보는 저장소에 포함하지 않았습니다.
 
 ---
 
@@ -219,6 +237,12 @@ RAG 기준 문서를 ChromaDB에 색인합니다.
 
 ```powershell
 .\venv\Scripts\python.exe -m scripts.ingest_knowledge
+```
+
+시연용 SQLite 데이터를 생성합니다.
+
+```powershell
+.\venv\Scripts\python.exe -m scripts.seed_demo_data
 ```
 
 FastAPI 서버를 실행합니다.
@@ -342,6 +366,7 @@ MODUSIGN_TEMPLATE_ID=
 
 # 카카오 JavaScript SDK
 NEXT_PUBLIC_KAKAO_JAVASCRIPT_KEY=
+```
 
 | 변수명 | 설명 |
 | --- | --- |
